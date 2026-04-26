@@ -7,7 +7,8 @@ let totalChunks = 0;
 let fileRef = null;
 
 async function startUpload() {
-  const file = document.getElementById("fileInput").files[0];
+  const file = fileRef || document.getElementById("fileInput").files[0];
+  //   const file = document.getElementById("fileInput").files[0];
   if (!file) return alert("Select file");
 
   fileRef = file;
@@ -58,8 +59,9 @@ async function startUpload() {
 
     const percent = Math.floor(((i + 1) / totalChunks) * 100);
     progressBar.style.width = percent + "%";
-    status.innerText = `Uploading... ${percent}%`;
-    status.innerText = `Uploading chunk ${i + 1}/${totalChunks}`;
+    // status.innerText = `Uploading... ${percent}%`;
+    // status.innerText = `Uploading chunk ${i + 1}/${totalChunks}`;
+    status.innerText = `Uploading ${file.name}... ${percent}%`;
 
     currentChunk = i + 1; // 👈 update progress
   }
@@ -75,22 +77,10 @@ async function startUpload() {
     });
 
     status.innerText = "✅ Upload Complete";
+    // currentChunk = 0;
+    resetDropZone();
     // reset
-    currentChunk = 0;
   }
-
-  // merge request
-  // await fetch("merge.php", {
-  //     method: "POST",
-  //     headers: { "Content-Type": "application/json" },
-  //     body: JSON.stringify({
-  //         fileName: file.name,
-  //         totalChunks
-  //     })
-  // });
-
-  // status.innerText = "✅ Upload Complete";
-  // progressBar.style.width = "100%";
 
   loadFiles();
 }
@@ -219,5 +209,78 @@ async function loadFiles() {
   });
 }
 
-// initial load
-loadFiles();
+function handleFile(file) {
+  if (!file) return;
+
+  document.getElementById("fileInput").files = new DataTransfer().files;
+
+  // store file reference
+  fileRef = file;
+
+  const content = document.getElementById("dropContent");
+  content.innerHTML = `
+        <p>📄 Selected:</p>
+        <strong>${file.name}</strong>
+        <p style="font-size:12px;">
+            ${(file.size / (1024 * 1024)).toFixed(2)} MB
+        </p>
+    `;
+  content.innerHTML += `
+        <br><button onclick="resetDropZone()">Change File</button>
+    `;
+
+  //   startUpload(); // 👈 reuse your existing function
+}
+
+function resetDropZone() {
+  fileRef = null;
+
+  document.getElementById("dropContent").innerHTML = `
+        <p>📂 Drag & Drop file here</p>
+        <p>or click to select</p>
+    `;
+
+  fileInput.value = ""; // 👈 important
+  currentChunk = 0;
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  // initial load
+  loadFiles();
+
+  const dropZone = document.getElementById("dropZone");
+  const fileInput = document.getElementById("fileInput");
+
+  ["dragenter", "dragover", "dragleave", "drop"].forEach((event) => {
+    dropZone.addEventListener(event, (e) => e.preventDefault());
+  });
+
+  // click → open file picker
+  dropZone.addEventListener("click", () => fileInput.click());
+
+  // file selected
+  fileInput.addEventListener("change", (e) => {
+    const file = e.target.files[0];
+    handleFile(file);
+  });
+
+  // drag over
+  dropZone.addEventListener("dragover", (e) => {
+    e.preventDefault();
+    dropZone.classList.add("dragover");
+  });
+
+  // drag leave
+  dropZone.addEventListener("dragleave", () => {
+    dropZone.classList.remove("dragover");
+  });
+
+  // drop
+  dropZone.addEventListener("drop", (e) => {
+    e.preventDefault();
+    dropZone.classList.remove("dragover");
+
+    const file = e.dataTransfer.files[0];
+    handleFile(file);
+  });
+});
