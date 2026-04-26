@@ -1,5 +1,10 @@
 <?php
 require 'config.php';
+require 'rate-limit.php';
+require 'throttle.php';
+
+applyThrottle(500); // heavier operation
+checkRateLimit(2, 1); // merge is heavier → stricter
 
 // read JSON body
 $data = json_decode(file_get_contents("php://input"), true);

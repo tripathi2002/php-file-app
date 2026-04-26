@@ -1,5 +1,10 @@
 <?php
 require 'config.php';
+require 'rate-limit.php';
+require 'throttle.php';
+
+applyThrottle(200); // 200ms gap between requests
+checkRateLimit(5, 1); // 5 req/sec
 
 $chunkIndex = $_POST['chunkIndex'] ?? null;
 $totalChunks = $_POST['totalChunks'] ?? null;
@@ -15,7 +20,7 @@ $file = $_FILES['file'];
 $ext = pathinfo($fileName, PATHINFO_EXTENSION);
 
 // basic validation
-$allowed = ['jpg','png','pdf','mp4','zip','txt'];
+$allowed = ['jpg', 'png', 'pdf', 'mp4', 'zip', 'txt'];
 if (!in_array(strtolower($ext), $allowed)) {
     echo json_encode(['error' => 'Invalid file type']);
     exit;
