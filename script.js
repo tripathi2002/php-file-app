@@ -107,7 +107,7 @@ async function deleteFile(fileName) {
 }
 
 async function cancelUpload() {
-  if (!controller) return;
+  if (!controller || !fileRef) return; // Use fileRef
 
   isCancelled = true;
   controller.abort(); // 🛑 stop request
@@ -121,7 +121,7 @@ async function cancelUpload() {
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      fileName: file.name,
+      fileName: fileRef.name, // Use fileRef here
     }),
   });
 }
@@ -202,6 +202,7 @@ async function loadFiles() {
         <div class="file-actions">
             <a class="view" href="uploads/${file}" target="_blank">View</a>
             <a class="download" href="download.php?file=${file}">Download</a>
+            <button class="rename" onclick="renameFile('${file}')">Rename</button>
             <button class="delete" onclick="deleteFile('${file}')">Delete</button>
         </div>
         `;
@@ -212,7 +213,7 @@ async function loadFiles() {
 function handleFile(file) {
   if (!file) return;
 
-  document.getElementById("fileInput").files = new DataTransfer().files;
+  // document.getElementById("fileInput").files = new DataTransfer().files;
 
   // store file reference
   fileRef = file;
@@ -244,6 +245,32 @@ function resetDropZone() {
   currentChunk = 0;
 }
 
+async function renameFile(oldName) {
+  const newName = prompt("Enter new file name:", oldName);
+
+  if (!newName || newName === oldName) return;
+
+  const res = await fetch("rename.php", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      oldName,
+      newName,
+    }),
+  });
+
+  const data = await res.json();
+
+  if (data.error) {
+    alert(data.error);
+  } else {
+    alert("Renamed successfully");
+    loadFiles(); // refresh list
+  }
+}
+
 document.addEventListener("DOMContentLoaded", () => {
   // initial load
   loadFiles();
@@ -256,12 +283,16 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   // click → open file picker
-  dropZone.addEventListener("click", () => fileInput.click());
+  // dropZone.addEventListener("click", () => fileInput.click());
 
   // file selected
   fileInput.addEventListener("change", (e) => {
     const file = e.target.files[0];
-    handleFile(file);
+    try {
+      handleFile(file);
+    } catch (e) {
+      alert("Error: " + e.message);
+    }
   });
 
   // drag over
@@ -281,6 +312,10 @@ document.addEventListener("DOMContentLoaded", () => {
     dropZone.classList.remove("dragover");
 
     const file = e.dataTransfer.files[0];
-    handleFile(file);
+    try {
+      handleFile(file);
+    } catch (e) {
+      alert("Error: " + e.message);
+    }
   });
 });

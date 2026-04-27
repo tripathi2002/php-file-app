@@ -19,12 +19,18 @@
             <!-- <input type="file" id="fileInput" class="file-input"> -->
 
             <div class="drop-zone" id="dropZone">
-                <div id="dropContent">
+                <!-- <div>
                     <p>📂 Drag & Drop file here</p>
                     <p>or click to select</p>
-                </div>
+                </div> -->
+                <label id="dropContent" for="fileInput" class="drop-content">
+                    <p>📂 Tap or Drag file</p>
+                    <p>Click to select</p>
+                </label>
+
             </div>
-            <input type="file" id="fileInput" hidden>
+            <input type="file" id="fileInput" class="file-input visually-hidden">
+
             <br>
             <div class="btn-group">
                 <button class="upload" onclick="startUpload()">Upload</button>
@@ -46,7 +52,7 @@
         </div>
 
     </div>
-    <script src="script.js"></script>
+    <script src="script.js?v=1.0.1"></script>
 </body>
 
 </html>
