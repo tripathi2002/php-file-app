@@ -2,7 +2,7 @@ let controller = null;
 let isCancelled = false;
 let isPaused = false;
 
-let currentChunk = 0; // 👈 important
+let currentChunk = 0; // important
 let totalChunks = 0;
 let fileRef = null;
 
@@ -15,7 +15,7 @@ async function startUpload() {
   isPaused = false;
   isCancelled = false;
 
-  controller = new AbortController(); // 👈 init
+  controller = new AbortController(); // init
 
   const chunkSize = 5 * 1024 * 1024;
   const totalChunks = Math.ceil(file.size / chunkSize);
@@ -26,15 +26,15 @@ async function startUpload() {
   const REQUEST_DELAY = 200; // match backend throttle
 
   for (let i = currentChunk; i < totalChunks; i++) {
-    // 🛑 stop loop if cancelled
+    // stop loop if cancelled
     if (isCancelled) {
-      status.innerText = "❌ Upload Cancelled";
+      status.innerText = "Upload Cancelled";
       return;
     }
 
     if (isPaused) {
-      status.innerText = "⏸️ Upload Paused";
-      currentChunk = i; // 👈 save progress
+      status.innerText = "Upload Paused";
+      currentChunk = i; // save progress
       return;
     }
 
@@ -46,7 +46,7 @@ async function startUpload() {
     formData.append("totalChunks", totalChunks);
     formData.append("fileName", file.name);
 
-    // 👇 pass controller signal
+    // pass controller signal
     await uploadChunkWithControl(formData, controller.signal);
 
     // await fetch("upload-chunk.php", {
@@ -54,7 +54,7 @@ async function startUpload() {
     //     body: formData
     // });
 
-    // ✅ Respect throttle (important)
+    // Respect throttle (important)
     await sleep(REQUEST_DELAY);
 
     const percent = Math.floor(((i + 1) / totalChunks) * 100);
@@ -63,7 +63,7 @@ async function startUpload() {
     // status.innerText = `Uploading chunk ${i + 1}/${totalChunks}`;
     status.innerText = `Uploading ${file.name}... ${percent}%`;
 
-    currentChunk = i + 1; // 👈 update progress
+    currentChunk = i + 1; // update progress
   }
 
   if (!isCancelled) {
@@ -76,7 +76,7 @@ async function startUpload() {
       }),
     });
 
-    status.innerText = "✅ Upload Complete";
+    status.innerText = "Upload Complete";
     // currentChunk = 0;
     resetDropZone();
     // reset
@@ -110,7 +110,7 @@ async function cancelUpload() {
   if (!controller || !fileRef) return; // Use fileRef
 
   isCancelled = true;
-  controller.abort(); // 🛑 stop request
+  controller.abort(); // stop request
 
   const file = document.getElementById("fileInput").files[0];
 
@@ -162,9 +162,9 @@ async function uploadChunkWithControl(
     });
 
     if (res.status === 429) {
-      status.innerText = "⚠️ Rate limited, retrying...";
+      status.innerText = "Rate limited, retrying...";
 
-      console.warn(`⚠️ Rate limited, retrying in ${delay}ms`);
+      console.warn(`Rate limited, retrying in ${delay}ms`);
       await sleep(delay);
       return uploadChunkWithControl(formData, signal, retries, delay * 2); // exponential backoff
     }
@@ -178,7 +178,7 @@ async function uploadChunkWithControl(
     }
 
     if (retries > 0) {
-      status.innerText = "⏳ Network issue, retrying...";
+      status.innerText = "Network issue, retrying...";
 
       await sleep(delay);
       return uploadChunkWithControl(formData, signal, retries - 1, delay * 2);
@@ -200,10 +200,10 @@ async function loadFiles() {
     li.innerHTML = `
         <strong>${file}</strong>
         <div class="file-actions">
-            <a class="view" href="uploads/${file}" target="_blank">View</a>
-            <a class="download" href="download.php?file=${file}">Download</a>
-            <button class="rename" onclick="renameFile('${file}')">Rename</button>
-            <button class="delete" onclick="deleteFile('${file}')">Delete</button>
+            <a class="btn view" href="uploads/${file}" target="_blank">View</a>
+            <a class="btn download" href="download.php?file=${file}">Download</a>
+            <button class="btn rename" onclick="renameFile('${file}')">Rename</button>
+            <button class="btn delete" onclick="deleteFile('${file}')">Delete</button>
         </div>
         `;
     list.appendChild(li);
@@ -237,11 +237,11 @@ function resetDropZone() {
   fileRef = null;
 
   document.getElementById("dropContent").innerHTML = `
-        <p>📂 Drag & Drop file here</p>
+        <p>Drag & Drop file here</p>
         <p>or click to select</p>
     `;
 
-  fileInput.value = ""; // 👈 important
+  fileInput.value = ""; // important
   currentChunk = 0;
 }
 

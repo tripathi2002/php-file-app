@@ -1,7 +1,7 @@
 <?php
 require 'config.php';
 
-require 'auth.php';
+// require 'auth.php';
 
 $headers = getallheaders();
 $token = $headers['Authorization'] ?? null;

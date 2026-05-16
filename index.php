@@ -33,10 +33,10 @@
 
             <br>
             <div class="btn-group">
-                <button class="upload" onclick="startUpload()">Upload</button>
-                <button class="pause" onclick="pauseUpload()">Pause</button>
-                <button class="resume" onclick="resumeUpload()">Resume</button>
-                <button class="cancel" onclick="cancelUpload()">Cancel</button>
+                <button class="btn upload" onclick="startUpload()">Upload</button>
+                <button class="btn pause" onclick="pauseUpload()">Pause</button>
+                <button class="btn resume" onclick="resumeUpload()">Resume</button>
+                <button class="btn cancel" onclick="cancelUpload()">Cancel</button>
             </div>
 
             <div class="progress">
@@ -48,7 +48,9 @@
 
         <div class="card file-list">
             <h3>Files</h3>
-            <ul id="fileList"></ul>
+            <ul id="fileList">
+
+            </ul>
         </div>
 
     </div>
