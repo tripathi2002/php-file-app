@@ -3,14 +3,14 @@ require 'config.php';
 
 // require 'auth.php';
 
-$headers = getallheaders();
-$token = $headers['Authorization'] ?? null;
+// $headers = getallheaders();
+// $token = $headers['Authorization'] ?? null;
 
-if (!$token || !validateToken($token)) {
-    http_response_code(401);
-    echo json_encode(['error' => 'Unauthorized']);
-    exit;
-}
+// if (!$token || !validateToken($token)) {
+//     http_response_code(401);
+//     echo json_encode(['error' => 'Unauthorized']);
+//     exit;
+// }
 
 // Allow both JSON and query param
 $data = json_decode(file_get_contents("php://input"), true);

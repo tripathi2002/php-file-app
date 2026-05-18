@@ -227,7 +227,7 @@ function handleFile(file) {
         </p>
     `;
   content.innerHTML += `
-        <br><button onclick="resetDropZone()">Change File</button>
+        <br><button class="btn" onclick="resetDropZone()">Change File</button>
     `;
 
   //   startUpload(); // 👈 reuse your existing function
