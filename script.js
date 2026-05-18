@@ -91,21 +91,25 @@ async function deleteFile(fileName) {
   const confirmed = await uiConfirm(`Delete ${fileName}?`, true);
   if (!confirmed) return;
 
-  const res = await fetch(API_BASE + "delete.php", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ fileName }),
-  });
+  try {
+    const res = await fetch(API_BASE + "delete.php", {
+      method: "DELETE",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ fileName }),
+    });
 
-  const data = await res.json();
+    const data = await res.json();
 
-  if (data.error) {
-    uiToast(data.error, "error");
-  } else {
-    uiToast("Deleted successfully", "success");
-    loadFiles(); // refresh list
+    if (data.error) {
+      uiToast(data.error, "error");
+    } else {
+      uiToast("Deleted successfully", "success");
+      loadFiles(); // refresh list
+    }
+  } catch (error) {
+    uiToast("Failed to delete file: " + error.message, "error");
   }
 }
 
@@ -204,7 +208,7 @@ async function loadFiles() {
     const li = document.createElement("li");
     const menuId = `menu-${index}`;
     // handle potential quotes in filenames
-    const safeFile = file.replace(/'/g, "\\'");
+    const safeFile = file.replace(/'/g, "\\'").replace(/"/g, "&quot;");
     li.innerHTML = `
         <div class="file-item-header">
           <strong>${file}</strong>
@@ -284,24 +288,28 @@ async function renameFile(oldName) {
 
   if (!newName || newName === oldName) return;
 
-  const res = await fetch(API_BASE + "rename.php", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      oldName,
-      newName,
-    }),
-  });
+  try {
+    const res = await fetch(API_BASE + "rename.php", {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        oldName,
+        newName,
+      }),
+    });
 
-  const data = await res.json();
+    const data = await res.json();
 
-  if (data.error) {
-    uiToast(data.error, "error");
-  } else {
-    uiToast("Renamed successfully", "success");
-    loadFiles(); // refresh list
+    if (data.error) {
+      uiToast(data.error, "error");
+    } else {
+      uiToast("Renamed successfully", "success");
+      loadFiles(); // refresh list
+    }
+  } catch (error) {
+    uiToast("Failed to rename file: " + error.message, "error");
   }
 }
 

@@ -12,8 +12,14 @@ require 'config.php';
 //     exit;
 // }
 
+if ($_SERVER['REQUEST_METHOD'] !== 'DELETE') {
+    http_response_code(405);
+    echo json_encode(['error' => 'Method not allowed']);
+    exit;
+}
+
 // Allow both JSON and query param
-$data = json_decode(file_get_contents("php://input"), true);
+$data = json_decode(file_get_contents("php://input"), true) ?? [];
 
 $fileName = $data['fileName'] ?? ($_GET['file'] ?? null);
 

@@ -1,7 +1,7 @@
 <?php
 require 'config.php';
 
-$data = json_decode(file_get_contents("php://input"), true);
+$data = json_decode(file_get_contents("php://input"), true) ?? [];
 
 $oldName = $data['oldName'] ?? null;
 $newName = $data['newName'] ?? null;
