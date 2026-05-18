@@ -17,6 +17,20 @@ async function startUpload() {
   isPaused = false;
   isCancelled = false;
 
+  const uploadBtn = document.querySelector('.btn.upload');
+  if (uploadBtn) {
+    uploadBtn.disabled = true;
+    uploadBtn.style.opacity = '0.5';
+    uploadBtn.style.cursor = 'not-allowed';
+  }
+
+  const dropContent = document.getElementById("dropContent");
+  dropContent.innerHTML = `
+        <div class="loader" style="margin: 10px auto;"></div>
+        <p style="color: #0d98d8; font-weight: bold;">Uploading...</p>
+        <strong>${file.name}</strong>
+  `;
+
   controller = new AbortController(); // init
 
   const chunkSize = 5 * 1024 * 1024;
@@ -36,6 +50,10 @@ async function startUpload() {
 
     if (isPaused) {
       status.innerText = "Upload Paused";
+      dropContent.innerHTML = `
+        <p style="color: #ff9800; font-weight: bold;">Paused</p>
+        <strong>${file.name}</strong>
+      `;
       currentChunk = i; // save progress
       return;
     }
@@ -118,6 +136,8 @@ async function cancelUpload() {
 
   isCancelled = true;
   controller.abort(); // stop request
+
+  resetDropZone();
 
   const file = document.getElementById("fileInput").files[0];
 
@@ -268,7 +288,7 @@ function handleFile(file) {
         <br><button class="btn" onclick="resetDropZone()">Change File</button>
     `;
 
-  //   startUpload(); // 👈 reuse your existing function
+  startUpload();
 }
 
 function resetDropZone() {
@@ -279,8 +299,22 @@ function resetDropZone() {
         <p>or click to select</p>
     `;
 
-  fileInput.value = ""; // important
+  const fileInput = document.getElementById("fileInput");
+  if(fileInput) fileInput.value = ""; // important
   currentChunk = 0;
+  
+  const status = document.getElementById("status");
+  if (status) status.innerText = "";
+  
+  const progressBar = document.getElementById("progressBar");
+  if (progressBar) progressBar.style.width = "0%";
+
+  const uploadBtn = document.querySelector('.btn.upload');
+  if (uploadBtn) {
+    uploadBtn.disabled = false;
+    uploadBtn.style.opacity = '1';
+    uploadBtn.style.cursor = 'pointer';
+  }
 }
 
 async function renameFile(oldName) {
