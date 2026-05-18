@@ -11,7 +11,7 @@ let fileRef = null;
 async function startUpload() {
   const file = fileRef || document.getElementById("fileInput").files[0];
   //   const file = document.getElementById("fileInput").files[0];
-  if (!file) return alert("Select file");
+  if (!file) return uiToast("Select file", "error");
 
   fileRef = file;
   isPaused = false;
@@ -88,7 +88,8 @@ async function startUpload() {
 }
 
 async function deleteFile(fileName) {
-  if (!confirm(`Delete ${fileName}?`)) return;
+  const confirmed = await uiConfirm(`Delete ${fileName}?`, true);
+  if (!confirmed) return;
 
   const res = await fetch(API_BASE + "delete.php", {
     method: "POST",
@@ -101,9 +102,9 @@ async function deleteFile(fileName) {
   const data = await res.json();
 
   if (data.error) {
-    alert(data.error);
+    uiToast(data.error, "error");
   } else {
-    alert("Deleted successfully");
+    uiToast("Deleted successfully", "success");
     loadFiles(); // refresh list
   }
 }
@@ -136,7 +137,7 @@ function pauseUpload() {
 }
 
 function resumeUpload() {
-  if (!fileRef) return alert("No file to resume");
+  if (!fileRef) return uiToast("No file to resume", "error");
 
   isPaused = false;
 
@@ -191,26 +192,57 @@ async function uploadChunkWithControl(
 
 // Load uploaded files
 async function loadFiles() {
+  const list = document.getElementById("fileList");
+  list.innerHTML = '<div class="loader"></div>';
+
   const res = await fetch(API_BASE + "list.php");
   const files = await res.json();
 
-  const list = document.getElementById("fileList");
   list.innerHTML = "";
 
-  files.forEach((file) => {
+  files.forEach((file, index) => {
     const li = document.createElement("li");
+    const menuId = `menu-${index}`;
+    // handle potential quotes in filenames
+    const safeFile = file.replace(/'/g, "\\'");
     li.innerHTML = `
-        <strong>${file}</strong>
+        <div class="file-item-header">
+          <strong>${file}</strong>
+          <div class="menu-container">
+            <button class="three-dot-btn" onclick="toggleMenu('${menuId}', event)">⋮</button>
+            <div class="dropdown-menu" id="${menuId}">
+              <button class="dropdown-item rename" onclick="renameFile('${safeFile}')">Rename</button>
+              <button class="dropdown-item delete" onclick="deleteFile('${safeFile}')">Delete</button>
+            </div>
+          </div>
+        </div>
         <div class="file-actions">
             <a class="btn view" href="${API_BASE}uploads/${file}" target="_blank">View</a>
             <a class="btn download" href="${API_BASE}download.php?file=${file}">Download</a>
-            <button class="btn rename" onclick="renameFile('${file}')">Rename</button>
-            <button class="btn delete" onclick="deleteFile('${file}')">Delete</button>
         </div>
         `;
     list.appendChild(li);
   });
 }
+
+function toggleMenu(menuId, event) {
+  event.stopPropagation(); // prevent document click from closing it immediately
+  const menus = document.querySelectorAll('.dropdown-menu');
+  menus.forEach(menu => {
+    if (menu.id !== menuId) {
+      menu.classList.remove('show');
+    }
+  });
+  const menu = document.getElementById(menuId);
+  if(menu) menu.classList.toggle('show');
+}
+
+document.addEventListener('click', (e) => {
+  if (!e.target.matches('.three-dot-btn')) {
+    const menus = document.querySelectorAll('.dropdown-menu');
+    menus.forEach(menu => menu.classList.remove('show'));
+  }
+});
 
 function handleFile(file) {
   if (!file) return;
@@ -248,7 +280,7 @@ function resetDropZone() {
 }
 
 async function renameFile(oldName) {
-  const newName = prompt("Enter new file name:", oldName);
+  const newName = await uiPrompt("Enter new file name:", oldName);
 
   if (!newName || newName === oldName) return;
 
@@ -266,9 +298,9 @@ async function renameFile(oldName) {
   const data = await res.json();
 
   if (data.error) {
-    alert(data.error);
+    uiToast(data.error, "error");
   } else {
-    alert("Renamed successfully");
+    uiToast("Renamed successfully", "success");
     loadFiles(); // refresh list
   }
 }
@@ -293,7 +325,7 @@ document.addEventListener("DOMContentLoaded", () => {
     try {
       handleFile(file);
     } catch (e) {
-      alert("Error: " + e.message);
+      uiToast("Error: " + e.message, "error");
     }
   });
 
@@ -317,7 +349,90 @@ document.addEventListener("DOMContentLoaded", () => {
     try {
       handleFile(file);
     } catch (e) {
-      alert("Error: " + e.message);
+      uiToast("Error: " + e.message, "error");
     }
   });
 });
+
+// Custom UI Functions
+document.body.insertAdjacentHTML('beforeend', `
+  <div class="modal-overlay" id="customModal">
+    <div class="modal-box">
+      <h3 class="modal-title" id="modalTitle"></h3>
+      <input type="text" class="modal-input" id="modalInput" style="display:none">
+      <div class="modal-buttons">
+        <button class="modal-btn cancel" id="modalCancel">Cancel</button>
+        <button class="modal-btn confirm" id="modalConfirm">OK</button>
+      </div>
+    </div>
+  </div>
+  <div class="toast-container" id="toastContainer"></div>
+`);
+
+function uiToast(message, type = 'info') {
+  const container = document.getElementById('toastContainer');
+  const toast = document.createElement('div');
+  toast.className = `toast ${type}`;
+  toast.innerText = message;
+  container.appendChild(toast);
+  setTimeout(() => {
+    toast.style.animation = 'fadeOut 0.3s ease-out forwards';
+    setTimeout(() => toast.remove(), 300);
+  }, 3000);
+}
+
+function uiConfirm(message, isDanger = false) {
+  return new Promise((resolve) => {
+    const modal = document.getElementById('customModal');
+    const title = document.getElementById('modalTitle');
+    const input = document.getElementById('modalInput');
+    const btnCancel = document.getElementById('modalCancel');
+    const btnConfirm = document.getElementById('modalConfirm');
+
+    title.innerText = message;
+    input.style.display = 'none';
+    btnCancel.style.display = 'block';
+    btnConfirm.className = `modal-btn ${isDanger ? 'danger' : 'confirm'}`;
+    btnConfirm.innerText = isDanger ? 'Delete' : 'Confirm';
+    
+    modal.classList.add('active');
+
+    const cleanup = () => {
+      modal.classList.remove('active');
+      btnCancel.onclick = null;
+      btnConfirm.onclick = null;
+    };
+
+    btnCancel.onclick = () => { cleanup(); resolve(false); };
+    btnConfirm.onclick = () => { cleanup(); resolve(true); };
+  });
+}
+
+function uiPrompt(message, defaultValue = '') {
+  return new Promise((resolve) => {
+    const modal = document.getElementById('customModal');
+    const title = document.getElementById('modalTitle');
+    const input = document.getElementById('modalInput');
+    const btnCancel = document.getElementById('modalCancel');
+    const btnConfirm = document.getElementById('modalConfirm');
+
+    title.innerText = message;
+    input.style.display = 'block';
+    input.value = defaultValue;
+    btnCancel.style.display = 'block';
+    btnConfirm.className = 'modal-btn confirm';
+    btnConfirm.innerText = 'Save';
+    
+    modal.classList.add('active');
+    input.focus();
+
+    const cleanup = () => {
+      modal.classList.remove('active');
+      btnCancel.onclick = null;
+      btnConfirm.onclick = null;
+    };
+
+    btnCancel.onclick = () => { cleanup(); resolve(null); };
+    btnConfirm.onclick = () => { cleanup(); resolve(input.value); };
+  });
+}
