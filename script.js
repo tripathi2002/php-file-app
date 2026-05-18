@@ -1,4 +1,5 @@
-const API_BASE = 'https://files.vibhu.pro/';
+const API_BASE = "https://vibhu.pro/file-app/";
+const FRONTEND_BASE = "https://file.vibhu.pro/";
 let controller = null;
 let isCancelled = false;
 let isPaused = false;
