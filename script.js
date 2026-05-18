@@ -1,3 +1,4 @@
+const API_BASE = 'https://files.vibhu.pro/';
 let controller = null;
 let isCancelled = false;
 let isPaused = false;
@@ -67,7 +68,7 @@ async function startUpload() {
   }
 
   if (!isCancelled) {
-    await fetch("merge.php", {
+    await fetch(API_BASE + "merge.php", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -88,7 +89,7 @@ async function startUpload() {
 async function deleteFile(fileName) {
   if (!confirm(`Delete ${fileName}?`)) return;
 
-  const res = await fetch("delete.php", {
+  const res = await fetch(API_BASE + "delete.php", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -115,7 +116,7 @@ async function cancelUpload() {
   const file = document.getElementById("fileInput").files[0];
 
   // 🧹 cleanup backend chunks
-  await fetch("cancel.php", {
+  await fetch(API_BASE + "cancel.php", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -155,7 +156,7 @@ async function uploadChunkWithControl(
 ) {
   const status = document.getElementById("status"); // 👈 add this
   try {
-    const res = await fetch("upload-chunk.php", {
+    const res = await fetch(API_BASE + "upload-chunk.php", {
       method: "POST",
       body: formData,
       signal, // 👈 important
@@ -189,7 +190,7 @@ async function uploadChunkWithControl(
 
 // Load uploaded files
 async function loadFiles() {
-  const res = await fetch("list.php");
+  const res = await fetch(API_BASE + "list.php");
   const files = await res.json();
 
   const list = document.getElementById("fileList");
@@ -200,8 +201,8 @@ async function loadFiles() {
     li.innerHTML = `
         <strong>${file}</strong>
         <div class="file-actions">
-            <a class="btn view" href="uploads/${file}" target="_blank">View</a>
-            <a class="btn download" href="download.php?file=${file}">Download</a>
+            <a class="btn view" href="${API_BASE}uploads/${file}" target="_blank">View</a>
+            <a class="btn download" href="${API_BASE}download.php?file=${file}">Download</a>
             <button class="btn rename" onclick="renameFile('${file}')">Rename</button>
             <button class="btn delete" onclick="deleteFile('${file}')">Delete</button>
         </div>
@@ -250,7 +251,7 @@ async function renameFile(oldName) {
 
   if (!newName || newName === oldName) return;
 
-  const res = await fetch("rename.php", {
+  const res = await fetch(API_BASE + "rename.php", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
