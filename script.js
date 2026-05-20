@@ -1,10 +1,10 @@
-// const CONFIG = {
-//   SERVER: "https://vibhu.pro/file-app",
-// };
-
 const CONFIG = {
-  SERVER: "http://localhost/file-app",
+  SERVER: "https://vibhu.pro/file-app",
 };
+
+// const CONFIG = {
+//   SERVER: "http://localhost/file-app",
+// };
 
 const API_BASE = `${CONFIG.SERVER}/`;
 
