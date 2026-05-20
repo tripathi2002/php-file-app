@@ -1,42 +1,59 @@
+// // const API_BASE = "https://vibhu.pro/file-app/";
+// const FRONTEND_BASE = "https://file.vibhu.pro/";
+// let controller = null;
+// let isCancelled = false;
+// let isPaused = false;
+
+// let currentChunk = 0; // important
+// let totalChunks = 0;
+// let fileRef = null;
+
+// // const CONFIG = {
+// //   SERVER: "https://vibhu.pro/file-app",
+// // };
+
 // const CONFIG = {
-//   SERVER: "https://vibhu.pro/file-app",
+//   SERVER: "http://localhost/file-app",
 // };
 
-const CONFIG = {
-  SERVER: "http://localhost/file-app",
-};
+// const API_BASE = `${CONFIG.SERVER}/`;
 
-const API_BASE = `${CONFIG.SERVER}/`;
+// function loadScript(src) {
+//   return new Promise((resolve, reject) => {
+//     const script = document.createElement("script");
 
+//     script.src = src;
 
-function loadScript(src) {
-  return new Promise((resolve, reject) => {
-    const script = document.createElement("script");
-    script.src = src;
-    script.onload = resolve;
-    script.onerror = reject;
-    document.head.appendChild(script);
-  });
-}
+//     script.onload = resolve;
 
-async function init() {
-  await loadScript(`${CONFIG.SERVER}/modules/upload.js`);
-  await loadScript(`${CONFIG.SERVER}/modules/files.js`);
-  await loadScript(`${CONFIG.SERVER}/modules/modal.js`);
-  await loadScript(`${CONFIG.SERVER}/modules/dragdrop.js`);
+//     script.onerror = reject;
 
+//     document.head.appendChild(script);
+//   });
+// }
 
+// // async function init() {
+//   await loadScript(`${CONFIG.SERVER}/modules/upload.js`);
 
-  
-  FilesModule.init();
-  ModalModule.init();
-  UploadModule.init();
-  DragDropModule.init();
+//   // await loadScript(`${CONFIG.SERVER}/modules/chunk.js`);
+//   await loadScript(`${CONFIG.SERVER}/modules/upload.js`);
 
+//   await loadScript(`${CONFIG.SERVER}/modules/files.js`);
 
-}
+//   await loadScript(`${CONFIG.SERVER}/modules/modal.js`);
 
-init();
+//   await loadScript(`${CONFIG.SERVER}/modules/dragdrop.js`);
+
+//   UploadModule.init();
+
+//   FilesModule.init();
+
+//   DragDropModule.init();
+
+//   UploadModule.init();
+// }
+
+// init();
 
 // async function startUpload() {
 //   const file = fileRef || document.getElementById("fileInput").files[0];
@@ -244,7 +261,7 @@ init();
 //   }
 // }
 
-// // Load uploaded files
+// Load uploaded files
 // async function loadFiles() {
 //   const list = document.getElementById("fileList");
 //   list.innerHTML = '<div class="loader"></div>';
@@ -321,31 +338,31 @@ init();
 //   startUpload();
 // }
 
-// function resetDropZone() {
-//   fileRef = null;
+function resetDropZone() {
+  fileRef = null;
 
-//   document.getElementById("dropContent").innerHTML = `
-//         <p>Drag & Drop file here</p>
-//         <p>or click to select</p>
-//     `;
+  document.getElementById("dropContent").innerHTML = `
+        <p>Drag & Drop file here</p>
+        <p>or click to select</p>
+    `;
 
-//   const fileInput = document.getElementById("fileInput");
-//   if (fileInput) fileInput.value = ""; // important
-//   currentChunk = 0;
+  const fileInput = document.getElementById("fileInput");
+  if (fileInput) fileInput.value = ""; // important
+  currentChunk = 0;
 
-//   const status = document.getElementById("status");
-//   if (status) status.innerText = "";
+  const status = document.getElementById("status");
+  if (status) status.innerText = "";
 
-//   const progressBar = document.getElementById("progressBar");
-//   if (progressBar) progressBar.style.width = "0%";
+  const progressBar = document.getElementById("progressBar");
+  if (progressBar) progressBar.style.width = "0%";
 
-//   const uploadBtn = document.querySelector(".btn.upload");
-//   if (uploadBtn) {
-//     uploadBtn.disabled = false;
-//     uploadBtn.style.opacity = "1";
-//     uploadBtn.style.cursor = "pointer";
-//   }
-// }
+  const uploadBtn = document.querySelector(".btn.upload");
+  if (uploadBtn) {
+    uploadBtn.disabled = false;
+    uploadBtn.style.opacity = "1";
+    uploadBtn.style.cursor = "pointer";
+  }
+}
 
 // async function renameFile(oldName) {
 //   const newName = await uiPrompt("Enter new file name:", oldName);
@@ -377,54 +394,54 @@ init();
 //   }
 // }
 
-// document.addEventListener("DOMContentLoaded", () => {
-//   // initial load
-//   loadFiles();
+document.addEventListener("DOMContentLoaded", () => {
+  // initial load
+  // loadFiles();
 
-//   const dropZone = document.getElementById("dropZone");
-//   const fileInput = document.getElementById("fileInput");
+  const dropZone = document.getElementById("dropZone");
+  const fileInput = document.getElementById("fileInput");
 
-//   ["dragenter", "dragover", "dragleave", "drop"].forEach((event) => {
-//     dropZone.addEventListener(event, (e) => e.preventDefault());
-//   });
+  ["dragenter", "dragover", "dragleave", "drop"].forEach((event) => {
+    dropZone.addEventListener(event, (e) => e.preventDefault());
+  });
 
-//   // click → open file picker
-//   // dropZone.addEventListener("click", () => fileInput.click());
+  // click → open file picker
+  // dropZone.addEventListener("click", () => fileInput.click());
 
-//   // file selected
-//   fileInput.addEventListener("change", (e) => {
-//     const file = e.target.files[0];
-//     try {
-//       handleFile(file);
-//     } catch (e) {
-//       uiToast("Error: " + e.message, "error");
-//     }
-//   });
+  // file selected
+  fileInput.addEventListener("change", (e) => {
+    const file = e.target.files[0];
+    try {
+      handleFile(file);
+    } catch (e) {
+      uiToast("Error: " + e.message, "error");
+    }
+  });
 
-//   // drag over
-//   dropZone.addEventListener("dragover", (e) => {
-//     e.preventDefault();
-//     dropZone.classList.add("dragover");
-//   });
+  // drag over
+  dropZone.addEventListener("dragover", (e) => {
+    e.preventDefault();
+    dropZone.classList.add("dragover");
+  });
 
-//   // drag leave
-//   dropZone.addEventListener("dragleave", () => {
-//     dropZone.classList.remove("dragover");
-//   });
+  // drag leave
+  dropZone.addEventListener("dragleave", () => {
+    dropZone.classList.remove("dragover");
+  });
 
-//   // drop
-//   dropZone.addEventListener("drop", (e) => {
-//     e.preventDefault();
-//     dropZone.classList.remove("dragover");
+  // drop
+  dropZone.addEventListener("drop", (e) => {
+    e.preventDefault();
+    dropZone.classList.remove("dragover");
 
-//     const file = e.dataTransfer.files[0];
-//     try {
-//       handleFile(file);
-//     } catch (e) {
-//       uiToast("Error: " + e.message, "error");
-//     }
-//   });
-// });
+    const file = e.dataTransfer.files[0];
+    try {
+      handleFile(file);
+    } catch (e) {
+      uiToast("Error: " + e.message, "error");
+    }
+  });
+});
 
 // // Custom UI Functions
 // document.body.insertAdjacentHTML(
