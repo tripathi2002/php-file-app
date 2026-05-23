@@ -1,48 +1,70 @@
-<!DOCTYPE html>
+<!doctype html>
 <html>
-
-<head>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>File Upload</title>
-    <link rel="icon" href="favicon.png" type="image/png">
-    <link rel="stylesheet" href="style.css">
-</head>
+    <link rel="icon" href="favicon.png" type="image/png" />
+    <link rel="stylesheet" href="style.css" />
+  </head>
 
-<body>
+  <body>
     <div class="container">
-        <h2> File Upload</h2>
-        <div class="card">
+      <h2>Files</h2>
+      <div class="card file-list">
+        <!-- <h3>Files</h3> -->
+        <ul id="fileList"></ul>
+      </div>
+    </div>
+
+    <!-- Floating Upload Button -->
+    <button id="fab" class="fab" onclick="openUpload()">+</button>
+    <!-- Overlay -->
+    <div class="overlay" id="overlay" onclick="closeUpload()">
+      <!-- <div class=""> -->
+        <!-- Upload Popup -->
+        <div
+          class="bottom-sheet upload-box"
+          id="uploadBox"
+          onClick="event.stopPropagation()"
+        >
+          <div class="card">
             <div class="drop-zone" id="dropZone">
-                <label id="dropContent" for="fileInput" class="drop-content">
-                    <p>Tap or Drag file</p>
-                    <p>Click to select</p>
-                </label>
+              <label id="dropContent" for="fileInput" class="drop-content">
+                <p>Tap or Drag file</p>
+                <p>Click to select</p>
+              </label>
             </div>
-            <input type="file" id="fileInput" class="file-input visually-hidden">
-            <br>
+            <input
+              type="file"
+              id="fileInput"
+              class="file-input visually-hidden"
+            />
+            <br />
             <div class="btn-group">
-                <button class="btn upload" onclick="UploadModule.start()">Upload</button>
-                <button class="btn pause" onclick="UploadModule.pause()">Pause</button>
-                <button class="btn resume" onclick="UploadModule.resume()">Resume</button>
-                <button class="btn cancel" onclick="UploadModule.cancel()">Cancel</button>
+              <button class="btn upload" onclick="UploadModule.start()">
+                Upload
+              </button>
+              <button class="btn pause" onclick="UploadModule.pause()">
+                Pause
+              </button>
+              <button class="btn resume" onclick="UploadModule.resume()">
+                Resume
+              </button>
+              <button class="btn cancel" onclick="UploadModule.cancel()">
+                Cancel
+              </button>
             </div>
 
             <div class="progress">
-                <div class="progress-bar" id="progressBar"></div>
+              <div class="progress-bar" id="progressBar"></div>
             </div>
 
             <p id="status"></p>
+          </div>
         </div>
+      </div>
+    <!-- </div> -->
 
-        <div class="card file-list">
-            <h3>Files</h3>
-            <ul id="fileList">
-
-            </ul>
-        </div>
-
-    </div>
     <script src="script.js?v=1.0.1"></script>
-</body>
-
+  </body>
 </html>

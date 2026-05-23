@@ -211,26 +211,26 @@ h2 {
 }
 
 .three-dot-btn {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 32px;
-    height: 32px;
-    border: none;
-    background: transparent;
-    border-radius: 8px;
-    cursor: pointer;
-    font-size: 20px;
-    line-height: 1;
-    transition: 0.2s ease;
-    transform: rotate(90deg);
-    padding: 0;
-    color: #4b5563;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: transparent;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 20px;
+  line-height: 1;
+  transition: 0.2s ease;
+  transform: rotate(90deg);
+  padding: 0;
+  color: #4b5563;
 }
 
 .three-dot-btn:hover {
-    background: #f3f4f6;
-    color: #111827;
+  background: #f3f4f6;
+  color: #111827;
 }
 
 .dropdown-menu {
@@ -284,6 +284,9 @@ h2 {
   gap: 12px;
   list-style: none;
   padding-inline: 0;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  word-break: break-word;
 }
 
 .file-item-header {
@@ -379,6 +382,71 @@ h2 {
   background: #2196f3;
 }
 
+/* Floating Button */
+.fab {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  width: 60px;
+  height: 60px;
+  border: none;
+  border-radius: 50%;
+  font-size: 30px;
+  cursor: pointer;
+  background: #000;
+  color: #fff;
+  z-index: 1000;
+  transition: all 0.5s ease;
+}
+
+.fab:hover {
+  background: #20252a;
+  transform: rotate(90deg);
+}
+.fab.hide {
+  opacity: 0;
+  visibility: hidden;
+}
+
+/* Overlay */
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  opacity: 0;
+  visibility: hidden;
+  transition: all 0.3s ease-in-out;
+  z-index: 2;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.overlay.show {
+  opacity: 1;
+  visibility: visible;
+  
+}
+
+/* .bottom-sheet {
+  transform: translateY(0);
+} */
+
+/* Upload Box */
+.upload-box {
+  background: #fff;
+  border-radius: 20px;
+  padding: 20px;
+  /* transition: all 0.3s ease; */
+}
+
+/* Mobile Bottom Sheet */
+@media (max-width: 425px) {
+  .overlay {
+    align-items: flex-end;
+  }
+}
+
 /* =========================
    ANIMATIONS
 ========================= */
@@ -435,5 +503,27 @@ h2 {
   }
   100% {
     transform: rotate(360deg);
+  }
+}
+
+@keyframes slideUp {
+  from {
+    /* height: 0%; */
+    transform: translateY(100%);
+  }
+
+  to {
+    /* height: auto; */
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideDown {
+  from {
+    transform: translateY(0);
+  }
+
+  to {
+    transform: translateY(100%);
   }
 }

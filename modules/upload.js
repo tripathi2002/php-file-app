@@ -86,7 +86,7 @@ window.UploadModule = {
       progressBar.style.width = percent + "%";
       status.innerText = `Uploading ${percent}%`;
 
-      await this.sleep(200);
+      await this.sleep(600);
       this.currentChunk = i + 1;
     }
 
