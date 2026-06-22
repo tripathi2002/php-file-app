@@ -225,13 +225,14 @@ h2 {
   transition: 0.2s ease;
   transform: rotate(90deg);
   padding: 0;
-  color: #4b5563;
+  color: #20252B;
 }
 
 .three-dot-btn:hover {
-  background: #f3f4f6;
-  color: #111827;
+  /* background: #f3f4f6; */
+  /* color: #111827; */
 }
+
 
 .dropdown-menu {
   position: absolute;
@@ -425,7 +426,6 @@ h2 {
 .overlay.show {
   opacity: 1;
   visibility: visible;
-  
 }
 
 .bottom-sheet {
