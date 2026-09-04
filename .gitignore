@@ -22,13 +22,25 @@ logs/
 .env.*.local
 
 # -----------------------------
-# Uploads & Chunks (IMPORTANT)
+# Uploads & Chunks
 # -----------------------------
 uploads/*
 !uploads/.gitkeep
 
 chunks/*
 !chunks/.gitkeep
+
+# -----------------------------
+# Runtime (rate limit, throttle, auth tokens)
+# -----------------------------
+rate_limit/*
+!rate_limit/.gitkeep
+
+throttle/*
+!throttle/.gitkeep
+
+tokens/*
+!tokens/.gitkeep
 
 # -----------------------------
 # Cache / Temp
@@ -51,6 +63,9 @@ dist/
 build/
 
 # -----------------------------
-# Debug files
+# Debug / backup junk
 # -----------------------------
 debug.txt
+* copy.*
+* copy.js
+*.bak
