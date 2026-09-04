@@ -32,11 +32,6 @@ RewriteRule ^uploads/.*\.(php|phtml|php3|php4|php5)$ - [F,L]
     Deny from all
 </Files>
 
-<Files "_dispatch.php">
-    Order allow,deny
-    Deny from all
-</Files>
-
 # -----------------------------
 # Upload limits (server-side)
 # -----------------------------

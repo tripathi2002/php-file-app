@@ -1,5 +1,2 @@
 <?php
-require 'config.php';
-
-$files = array_values(array_diff(scandir(UPLOAD_DIR), ['.', '..']));
-echo json_encode($files);
+require __DIR__ . '/api/v1/list.php';
