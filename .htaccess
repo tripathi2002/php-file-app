@@ -44,6 +44,9 @@ Header set Access-Control-Allow-Origin "*"
 Header set Access-Control-Allow-Methods "GET, POST, DELETE, PUT, OPTIONS"
 Header set Access-Control-Allow-Headers "Content-Type"
 
+# Versioned API directories are real files — do not rewrite them.
+RewriteRule ^api/v[0-9]+/ - [L]
+
 # -----------------------------
 # ⚡ Pretty URLs (optional)
 # -----------------------------

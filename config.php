@@ -1,7 +1,11 @@
 <?php
+define('APP_API_VERSION', 'v1');
+define('APP_UI_VERSION', '1.1.0');
+
 header("Access-Control-Allow-Origin: *");
 header("Access-Control-Allow-Methods: GET, POST, OPTIONS, DELETE, PUT");
 header("Access-Control-Allow-Headers: Content-Type, Authorization");
+header('X-API-Version: ' . APP_API_VERSION);
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     http_response_code(200);
