@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.1.2 (API layout)
+
+- Move real endpoint logic into `api/v1/`; root `*.php` files are one-line aliases only.
+- Remove `api/v1/_dispatch.php` indirection.
+
 ## 1.1.1 (UI)
 
 - Stop rewriting `/api/v1/*.php` (that collided with WordPress at the domain root).
