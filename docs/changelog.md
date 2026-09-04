@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.0.0 (API v2 / UI)
+
+- Add `api/v2/` and `ui/v2/` layout; latest app uses v2, v1 stays frozen.
+- Per-version `bootstrap.php` sets API/UI version before shared `config.php`.
+
 ## 1.1.2 (API layout)
 
 - Move real endpoint logic into `api/v1/`; root `*.php` files are one-line aliases only.

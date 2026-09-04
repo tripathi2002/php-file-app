@@ -1,2 +1,2 @@
 <?php
-require __DIR__ . '/api/v1/version.php';
+require __DIR__ . '/api/v2/version.php';

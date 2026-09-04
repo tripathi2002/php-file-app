@@ -6,31 +6,36 @@ Goal: an older UI (cached HTML/JS, or the frozen snapshot) must keep working whe
 
 | Layer | Location | Role |
 | --- | --- | --- |
-| **API v1 (source of truth)** | `api/v1/*.php` | Real handlers. Edit here for v1 behavior. |
-| **Root `*.php`** | `merge.php`, `list.php`, … | One-line aliases → `api/v1/`. For old URLs only. |
-| **Shared libs** | `config.php`, `rate-limit.php`, `throttle.php`, `auth.php` | Not versioned. Used by every API version. |
-| **UI snapshot** | `ui/v1/` | Frozen HTML/JS that calls `/api/v1/`. |
-| **Latest UI** | `index.html`, `script.js`, `modules/` | Current UI; points at `/api/v1/` today. |
+| **API v1 (frozen)** | `api/v1/*.php` | v1 handlers — do not break |
+| **API v2 (active)** | `api/v2/*.php` | Current development line |
+| **Root `*.php`** | `merge.php`, `list.php`, … | Legacy aliases → `api/v1/` |
+| **Shared libs** | `config.php`, `rate-limit.php`, … | Not versioned |
+| **UI v1 (frozen)** | `ui/v1/` | Old UI → `/api/v1/` |
+| **UI v2 (active)** | `ui/v2/` + root `index.html`, `modules/` | Current UI → `/api/v2/` |
 
 ```
-api/v1/merge.php     ← real merge logic (freeze this for v1)
-merge.php            ← require api/v1/merge.php (legacy URL)
-ui/v1/               ← frozen UI snapshot
+api/v1/merge.php     frozen v1
+api/v2/merge.php     edit here for v2
+merge.php            legacy alias → v1
+/                    latest UI → v2
+/ui/v1/              frozen v1 UI
+/ui/v2/              v2 UI workspace
 ```
-
-When you ship **v2**, add `api/v2/merge.php` with the new contract. Leave `api/v1/merge.php` unchanged. Root aliases can stay on v1 or you drop them once nothing calls them.
 
 ## Current versions
 
-- **API:** `v1` (implementation in `api/v1/`)
-- **UI:** `1.1.1` (snapshot in `ui/v1/`)
+- **Latest API:** `v2` (`api/v2/`)
+- **Latest UI:** `2.0.0` (root + `ui/v2/`)
+- **Frozen:** API/UI `v1` in `api/v1/` and `ui/v1/`
+
+Each API folder has `bootstrap.php` that sets `APP_API_VERSION` before `config.php` runs.
 
 ## Freeze rule
 
-1. **Never break v1.** `api/v1/merge.php` request/response shape stays the same.
-2. **Breaking change → new folder.** Copy to `api/v2/`, document in `docs/api-v2.md`, snapshot UI to `ui/v2/`.
-3. **Compatible fix on v1 is OK** (bugfix, extra JSON field). No field removals or renames.
+1. **Never break v1** once shipped.
+2. **Breaking change → new version folder** (`api/v3/`, `ui/v3/`).
+3. **Compatible fix on old version** only if old clients can ignore new fields.
 
 ## UI cache
 
-Bump `APP_UI_VERSION` and `?v=` on `index.html` when you ship UI changes. The `ui/v1/` snapshot loads its own `modules/` so it never picks up latest JS by accident.
+Bump `APP_UI_VERSION` and `?v=` when shipping UI changes. Frozen `ui/vN/` folders load their own `modules/`.

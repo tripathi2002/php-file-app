@@ -1,6 +1,5 @@
 <?php
-// v1 merge contract — do not change request/response shape here.
-// Breaking merge changes belong in api/v2/merge.php.
+// v2 merge — active development. Change contract here; keep api/v1/merge.php frozen.
 $root = dirname(__DIR__, 2);
 require __DIR__ . '/bootstrap.php';
 require $root . '/config.php';

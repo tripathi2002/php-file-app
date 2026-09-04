@@ -1,6 +1,10 @@
 <?php
-define('APP_API_VERSION', 'v1');
-define('APP_UI_VERSION', '1.1.1');
+if (!defined('APP_API_VERSION')) {
+    define('APP_API_VERSION', 'v2');
+}
+if (!defined('APP_UI_VERSION')) {
+    define('APP_UI_VERSION', '2.0.0');
+}
 
 header("Access-Control-Allow-Origin: *");
 header("Access-Control-Allow-Methods: GET, POST, OPTIONS, DELETE, PUT");

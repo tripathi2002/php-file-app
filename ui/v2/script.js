@@ -2,10 +2,6 @@ const CONFIG = {
   SERVER: "https://vibhu.pro/file-app",
 };
 
-// const CONFIG = {
-//   SERVER: "http://localhost/file-app",
-// };
-
 const APP_UI_VERSION = "2.0.0";
 const APP_API_VERSION = "v2";
 const SERVER = CONFIG.SERVER;
@@ -31,10 +27,10 @@ function loadScript(src) {
 
 async function init() {
   await resolveApiBase();
-  await loadScript(`${SERVER}/modules/upload.js?v=${APP_UI_VERSION}`);
-  await loadScript(`${SERVER}/modules/files.js?v=${APP_UI_VERSION}`);
-  await loadScript(`${SERVER}/modules/modal.js?v=${APP_UI_VERSION}`);
-  await loadScript(`${SERVER}/modules/dragdrop.js?v=${APP_UI_VERSION}`);
+  await loadScript(`modules/upload.js?v=${APP_UI_VERSION}`);
+  await loadScript(`modules/files.js?v=${APP_UI_VERSION}`);
+  await loadScript(`modules/modal.js?v=${APP_UI_VERSION}`);
+  await loadScript(`modules/dragdrop.js?v=${APP_UI_VERSION}`);
 
   FilesModule.init();
   ModalModule.init();
@@ -49,7 +45,6 @@ function openUpload() {
 
 function closeUpload() {
   document.getElementById("fab").classList.remove("hide");
-  // document.getElementById("uploadBox").classList.remove("show");
   document.getElementById("overlay").classList.remove("show");
 }
 

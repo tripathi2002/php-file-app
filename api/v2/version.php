@@ -9,5 +9,5 @@ echo json_encode([
     'api' => APP_API_VERSION,
     'ui' => APP_UI_VERSION,
     'uiPath' => 'ui/' . APP_API_VERSION . '/',
-    'compatibleUi' => ['v1'],
+    'compatibleUi' => ['v2'],
 ]);

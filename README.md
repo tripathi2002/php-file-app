@@ -2,7 +2,7 @@
 
 A simple, scalable PHP application for uploading large files using **chunked uploads**, with support for file listing, viewing, and downloading.
 
-**Current versions:** API `v1` · UI `1.1.1` (snapshot at `ui/v1/`)
+**Current versions:** API `v2` (latest) · UI `2.0.0` · frozen `v1` in `api/v1/` + `ui/v1/`
 
 On vibhu.pro (WordPress at the domain root), see [docs/hosting-wordpress.md](docs/hosting-wordpress.md).
 
