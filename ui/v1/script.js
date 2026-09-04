@@ -6,10 +6,18 @@ const CONFIG = {
 //   SERVER: "http://localhost/file-app",
 // };
 
-const APP_UI_VERSION = "1.1.0";
+const APP_UI_VERSION = "1.1.1";
 const APP_API_VERSION = "v1";
 const SERVER = CONFIG.SERVER;
-const API_BASE = `${SERVER}/api/${APP_API_VERSION}`;
+let API_BASE = `${SERVER}/api/${APP_API_VERSION}`;
+
+async function resolveApiBase() {
+  try {
+    const res = await fetch(`${API_BASE}/list.php`, { cache: "no-store" });
+    if (res.ok) return;
+  } catch (e) {}
+  API_BASE = SERVER;
+}
 
 function loadScript(src) {
   return new Promise((resolve, reject) => {
@@ -22,6 +30,7 @@ function loadScript(src) {
 }
 
 async function init() {
+  await resolveApiBase();
   await loadScript(`modules/upload.js?v=${APP_UI_VERSION}`);
   await loadScript(`modules/files.js?v=${APP_UI_VERSION}`);
   await loadScript(`modules/modal.js?v=${APP_UI_VERSION}`);

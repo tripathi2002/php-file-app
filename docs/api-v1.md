@@ -13,7 +13,7 @@ All v1 responses that go through `config.php` include header `X-API-Version: v1`
 ```json
 {
   "api": "v1",
-  "ui": "1.1.0",
+  "ui": "1.1.1",
   "uiPath": "ui/v1/",
   "compatibleUi": ["v1"]
 }
