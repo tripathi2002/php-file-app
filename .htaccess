@@ -1,55 +1,58 @@
-# Enable rewrite
-RewriteEngine On
+# Isolate this app from the WordPress + LiteSpeed rules in the site root.
+# Parent public_html/.htaccess must also skip /file-app/ — see docs/hosting-wordpress.md
 
-# Set base path (important since it's inside /files-app)
-RewriteBase /files-app/
+<IfModule LiteSpeed>
+CacheLookup off
+</IfModule>
+
+<IfModule mod_rewrite.c>
+RewriteEngine On
+RewriteBase /file-app/
+
+# Serve real files and folders (api/v1/*.php, modules, ui/v1, …). Do not
+# rewrite them, and do not let later rules map /api/v1/list.php elsewhere.
+RewriteCond %{REQUEST_FILENAME} -f [OR]
+RewriteCond %{REQUEST_FILENAME} -d
+RewriteRule ^ - [L]
+
+# Block PHP execution under uploads
+RewriteRule ^uploads/.*\.(php|phtml|php3|php4|php5)$ - [F,L]
+</IfModule>
 
 # -----------------------------
-# 🚫 Security: block sensitive files
+# Security: block sensitive files
 # -----------------------------
 <FilesMatch "\.(env|ini|log|sh|sql|bak|config)$">
     Order allow,deny
     Deny from all
 </FilesMatch>
 
-# Block direct access to config
 <Files "config.php">
     Order allow,deny
     Deny from all
 </Files>
 
+<Files "_dispatch.php">
+    Order allow,deny
+    Deny from all
+</Files>
+
 # -----------------------------
-# 📤 Upload limits (server-side)
+# Upload limits (server-side)
 # -----------------------------
+<IfModule lsapi_module>
 php_value upload_max_filesize 50M
 php_value post_max_size 50M
 php_value max_execution_time 300
 php_value max_input_time 300
 php_value memory_limit 256M
+</IfModule>
 
 # -----------------------------
-# 🧱 Prevent script execution in uploads
+# CORS
 # -----------------------------
-RewriteRule ^uploads/.*\.(php|phtml|php3|php4|php5)$ - [F,L]
-
-# -----------------------------
-# 📁 Allow file listing (optional)
-# -----------------------------
-Options +Indexes
-
-# -----------------------------
-# 🌐 CORS (optional, for API usage)
-# -----------------------------
+<IfModule mod_headers.c>
 Header set Access-Control-Allow-Origin "*"
 Header set Access-Control-Allow-Methods "GET, POST, DELETE, PUT, OPTIONS"
 Header set Access-Control-Allow-Headers "Content-Type"
-
-# Versioned API directories are real files — do not rewrite them.
-RewriteRule ^api/v[0-9]+/ - [L]
-
-# -----------------------------
-# ⚡ Pretty URLs (optional)
-# -----------------------------
-RewriteCond %{REQUEST_FILENAME} !-f
-RewriteCond %{REQUEST_FILENAME} !-d
-RewriteRule ^api/(.*)$ $1.php [L]
+</IfModule>

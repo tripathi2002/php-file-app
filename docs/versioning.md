@@ -5,7 +5,7 @@ Goal: an older UI (cached HTML/JS, or the frozen snapshot) must keep working whe
 ## Current versions
 
 - **API:** `v1`
-- **UI:** `1.1.0` (snapshot path `ui/v1/`)
+- **UI:** `1.1.1` (snapshot path `ui/v1/`)
 
 Constants live in [`config.php`](../config.php) (`APP_API_VERSION`, `APP_UI_VERSION`) and [`script.js`](../script.js).
 

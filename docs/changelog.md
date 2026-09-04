@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.1.1 (UI)
+
+- Stop rewriting `/api/v1/*.php` (that collided with WordPress at the domain root).
+- Correct `RewriteBase` to `/file-app/`, turn off LiteSpeed cache lookup in this folder, and fall back to root endpoints if a versioned URL 404s.
+
 ## 1.1.0 (UI) / API v1
 
 - Introduced API version `v1` at `/api/v1/` while keeping root PHP endpoints as aliases for older UIs.
