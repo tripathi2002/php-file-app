@@ -2,6 +2,10 @@
 
 A simple, scalable PHP application for uploading large files using **chunked uploads**, with support for file listing, viewing, and downloading.
 
+**Current versions:** API `v1` · UI `1.1.0` (frozen snapshot at `ui/v1/`)
+
+See **[docs/](docs/README.md)** for versioning rules and the v1 API contract. Breaking merge changes must ship as API v2 so older UIs keep working.
+
 ---
 
 ## 🚀 Features

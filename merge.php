@@ -1,4 +1,6 @@
 <?php
+// API v1 merge contract — do not change request/response shape here.
+// Breaking merge changes belong in api/v2/, leaving this file for older UIs.
 require 'config.php';
 require 'rate-limit.php';
 require 'throttle.php';

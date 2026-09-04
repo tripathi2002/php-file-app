@@ -1,0 +1,540 @@
+body {
+  font-family: Arial, sans-serif;
+  margin: 0;
+  background: #f5f7fb;
+  font-weight: 500;
+}
+
+.container {
+  max-width: 720px;
+  margin: auto;
+  padding: 16px;
+}
+
+h2 {
+  text-align: center;
+}
+
+.card {
+  background: #fff;
+  padding: 16px;
+  border-radius: 12px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+  margin-bottom: 20px;
+}
+
+.file-input {
+  width: 100%;
+  margin-bottom: 10px;
+}
+
+/* =========================
+   PROGRESS BAR
+========================= */
+.progress {
+  margin-top: 15px;
+  height: 10px;
+  background: #f0f0f0;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.progress-bar {
+  height: 100%;
+  width: 0%;
+  background: #0d98d8;
+  transition: width 0.6s;
+  border-radius: 10px;
+  animation: all 0.6s ease-in-out;
+}
+
+#status {
+  margin-top: 10px;
+  font-size: 14px;
+  text-align: center;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  border: 0;
+}
+
+/* =========================
+   MODAL
+========================= */
+
+.modal {
+  position: fixed;
+  inset: 0;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(4px);
+  z-index: 9999;
+  padding: 20px;
+  animation: fadeIn 0.2s ease;
+}
+
+.modal-content {
+  width: 100%;
+  max-width: 200px;
+  background: #ffffff;
+  border-radius: 18px;
+  padding: 24px;
+  position: relative;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+  animation: modalPop 0.25s ease;
+}
+
+.modal-title,
+#modalTitle {
+  margin: 0 0 10px;
+  font-size: 22px;
+  font-weight: 700;
+  color: #111827;
+}
+
+.modal-message,
+#modalMessage {
+  margin: 0 0 20px;
+  color: #4b5563;
+  line-height: 1.5;
+  word-break: break-word;
+}
+
+.modal-input {
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid #d1d5db;
+  border-radius: 12px;
+  font-size: 15px;
+  outline: none;
+  margin-bottom: 20px;
+  transition: 0.2s;
+  box-sizing: border-box;
+}
+
+.modal-input:focus {
+  border-color: #0d98d8;
+  box-shadow: 0 0 0 4px rgba(13, 152, 216, 0.12);
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+/* =========================
+   BUTTONS
+========================= */
+
+.btn-group {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.btn {
+  display: flex;
+  flex: 1;
+  justify-content: center;
+  align-items: center;
+  border-radius: 8px;
+  font-size: 14px;
+  cursor: pointer;
+  color: #161515;
+  background-color: #dbede9;
+  border: 0.6px solid #161515;
+  transition: all 0.3s ease-in-out;
+  min-height: 30px;
+  padding: 6px 10px;
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.btn:hover {
+  transform: translateY(-1px);
+}
+
+.btn.confirm {
+  background: #0d98d8;
+  color: white;
+}
+
+.btn.confirm:hover {
+  background: #0b84bc;
+}
+
+.btn.cancel {
+  background: #eef2f7;
+  color: #374151;
+}
+
+.btn.cancel:hover {
+  background: #dce3eb;
+}
+
+/* =========================
+   CLOSE BUTTON
+========================= */
+
+.close-btn {
+  position: absolute;
+  top: 14px;
+  right: 16px;
+  font-size: 24px;
+  color: #6b7280;
+  cursor: pointer;
+  transition: 0.2s;
+}
+
+.close-btn:hover {
+  color: #111827;
+
+  transform: rotate(90deg);
+}
+
+/* =========================
+   DROPDOWN MENU
+========================= */
+
+.menu-container {
+  position: relative;
+}
+
+.three-dot-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: transparent;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 20px;
+  line-height: 1;
+  transition: 0.2s ease;
+  transform: rotate(90deg);
+  padding: 0;
+  color: #20252B;
+}
+
+.three-dot-btn:hover {
+  /* background: #f3f4f6; */
+  /* color: #111827; */
+}
+
+
+.dropdown-menu {
+  position: absolute;
+  top: 38px;
+  right: 0;
+  min-width: 150px;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.12);
+  overflow: hidden;
+  display: none;
+  z-index: 100;
+  animation: fadeIn 0.15s ease;
+}
+
+.dropdown-menu.show {
+  display: block;
+}
+
+.dropdown-item {
+  width: 100%;
+  border: none;
+  background: white;
+  padding: 12px 14px;
+  text-align: left;
+  cursor: pointer;
+  transition: 0.2s;
+  font-size: 14px;
+}
+
+.dropdown-item:hover {
+  background: #f3f4f6;
+}
+
+.dropdown-item.delete {
+  color: #dc2626;
+}
+
+.dropdown-item.rename {
+  color: #0d98d8;
+}
+
+/* =========================
+   FILE LIST
+========================= */
+
+#fileList {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  list-style: none;
+  padding-inline: 0;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  word-break: break-word;
+}
+
+.file-item-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+
+.file-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+/* =========================
+   DRAG & DROP
+========================= */
+.drop-zone {
+  border: 2px dashed #161515;
+  padding: 30px;
+  text-align: center;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: 0.3s;
+  background: #fafafa;
+}
+
+.drop-zone.dragover {
+  border-color: #0d98d8;
+  background: #e8f5e9;
+}
+
+.drop-zone p {
+  margin: 5px 0;
+  font-size: 14px;
+}
+
+/* 📱 Mobile tweaks */
+@media (max-width: 480px) {
+  button {
+    font-size: 13px;
+    padding: 10px;
+  }
+
+  h2 {
+    font-size: 18px;
+  }
+}
+
+/* Loader Styles */
+.loader {
+  border: 4px solid #f3f3f3;
+  border-top: 4px solid #0d98d8;
+  border-radius: 50%;
+  width: 30px;
+  height: 30px;
+  animation: spin 1s linear infinite;
+  margin: 20px auto;
+}
+
+/* Toast */
+.toast-container {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  z-index: 1000;
+}
+
+.toast {
+  background: #333;
+  color: #fff;
+  padding: 12px 20px;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  font-size: 14px;
+  animation: slideIn 0.3s ease-out;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.toast.success {
+  background: #4caf50;
+}
+.toast.error {
+  background: #f44336;
+}
+.toast.info {
+  background: #2196f3;
+}
+
+/* Floating Button */
+.fab {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  width: 60px;
+  height: 60px;
+  border: none;
+  border-radius: 50%;
+  font-size: 30px;
+  cursor: pointer;
+  background: #000;
+  color: #fff;
+  z-index: 1000;
+  transition: all 0.5s ease;
+}
+
+.fab:hover {
+  background: #20252a;
+  transform: rotate(90deg);
+}
+.fab.hide {
+  opacity: 0;
+  visibility: hidden;
+}
+
+/* Overlay */
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  opacity: 0;
+  visibility: hidden;
+  transition: all 0.6s ease-in-out;
+  z-index: 2;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.overlay.show {
+  opacity: 1;
+  visibility: visible;
+}
+
+.bottom-sheet {
+  transform: translateY(100%);
+  transition: transform 0.6s ease-in-out;
+}
+
+.overlay.show .bottom-sheet {
+  transform: translateY(0);
+}
+
+/* Upload Box */
+.upload-box {
+  background: #fff;
+  border-radius: 20px;
+  padding: 20px;
+  width: 100%;
+  max-width: 400px;
+  box-sizing: border-box;
+}
+
+/* Mobile Bottom Sheet */
+@media (max-width: 425px) {
+  .overlay {
+    align-items: flex-end;
+  }
+  .upload-box {
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
+  }
+}
+
+/* =========================
+   ANIMATIONS
+========================= */
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes fadeOut {
+  from {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(100%);
+  }
+}
+
+@keyframes modalPop {
+  from {
+    opacity: 0;
+
+    transform: scale(0.95);
+  }
+
+  to {
+    opacity: 1;
+
+    transform: scale(1);
+  }
+}
+
+@keyframes slideIn {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes spin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes slideUp {
+  from {
+    /* height: 0%; */
+    transform: translateY(100%);
+  }
+
+  to {
+    /* height: auto; */
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideDown {
+  from {
+    transform: translateY(0);
+  }
+
+  to {
+    transform: translateY(100%);
+  }
+}

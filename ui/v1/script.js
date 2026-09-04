@@ -22,10 +22,10 @@ function loadScript(src) {
 }
 
 async function init() {
-  await loadScript(`${SERVER}/modules/upload.js?v=${APP_UI_VERSION}`);
-  await loadScript(`${SERVER}/modules/files.js?v=${APP_UI_VERSION}`);
-  await loadScript(`${SERVER}/modules/modal.js?v=${APP_UI_VERSION}`);
-  await loadScript(`${SERVER}/modules/dragdrop.js?v=${APP_UI_VERSION}`);
+  await loadScript(`modules/upload.js?v=${APP_UI_VERSION}`);
+  await loadScript(`modules/files.js?v=${APP_UI_VERSION}`);
+  await loadScript(`modules/modal.js?v=${APP_UI_VERSION}`);
+  await loadScript(`modules/dragdrop.js?v=${APP_UI_VERSION}`);
 
   FilesModule.init();
   ModalModule.init();
