@@ -2,9 +2,16 @@
 define('APP_API_VERSION', 'v1');
 define('APP_UI_VERSION', '1.1.1');
 
-header("Access-Control-Allow-Origin: *");
-header("Access-Control-Allow-Methods: GET, POST, OPTIONS, DELETE, PUT");
-header("Access-Control-Allow-Headers: Content-Type, Authorization");
+// CORS: only origins in this allowlist receive CORS headers (default: same-origin only).
+// Set CORS_ALLOWED_ORIGINS as a comma-separated list, e.g. "https://example.com,https://app.example.com".
+$allowedOrigins = array_filter(array_map('trim', explode(',', getenv('CORS_ALLOWED_ORIGINS') ?: '')));
+$requestOrigin = $_SERVER['HTTP_ORIGIN'] ?? '';
+if ($requestOrigin !== '' && in_array($requestOrigin, $allowedOrigins, true)) {
+    header("Access-Control-Allow-Origin: $requestOrigin");
+    header("Vary: Origin");
+    header("Access-Control-Allow-Methods: GET, POST, OPTIONS, DELETE, PUT");
+    header("Access-Control-Allow-Headers: Content-Type, Authorization");
+}
 header('X-API-Version: ' . APP_API_VERSION);
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
