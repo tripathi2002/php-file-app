@@ -32,6 +32,12 @@ RewriteRule ^uploads/.*\.(php|phtml|php3|php4|php5)$ - [F,L]
     Deny from all
 </Files>
 
+# Access keys may only be generated from the CLI: php generate-key.php
+<Files "generate-key.php">
+    Order allow,deny
+    Deny from all
+</Files>
+
 # -----------------------------
 # Upload limits (server-side)
 # -----------------------------
@@ -44,10 +50,5 @@ php_value memory_limit 256M
 </IfModule>
 
 # -----------------------------
-# CORS
+# CORS is handled in config.php via an allowlist (CORS_ALLOWED_ORIGINS).
 # -----------------------------
-<IfModule mod_headers.c>
-Header set Access-Control-Allow-Origin "*"
-Header set Access-Control-Allow-Methods "GET, POST, DELETE, PUT, OPTIONS"
-Header set Access-Control-Allow-Headers "Content-Type"
-</IfModule>
