@@ -90,3 +90,10 @@ Viewing the stored file is not versioned: `{SERVER}/uploads/{file}`.
 ```json
 { "fileName": "example.mp4" }
 ```
+
+
+## Health check
+
+`GET /api/v1/health.php` or `GET /health.php`
+
+Returns `200` with `{"status":"ok", ...}` when the `uploads/` and `chunks/` directories are writable, otherwise `503` with `"status":"degraded"` and per-check booleans. Useful for uptime monitors.

@@ -86,3 +86,7 @@ GET /download.php?file=example.mp4
 Open in browser:
 
 http://your-domain/files-app/
+
+## Health check
+
+`GET /health.php` returns `200` (`status: ok`) when the upload and chunk folders are writable, or `503` otherwise. Point an uptime monitor at it. See `docs/api-v1.md`.
