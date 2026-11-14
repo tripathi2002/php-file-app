@@ -88,6 +88,7 @@ async function bootApp() {
   ConfirmNavModule.init();
   SoundModule.init();
   SeedDemoModule.init();
+  AutoRefreshModule.init();
   initMoreMenu();
   initFolderUpload();
   initZipFolder();
