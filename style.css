@@ -1006,6 +1006,27 @@ html[data-focus="1"] .container {
   max-width: 900px;
 }
 
+.scroll-top-btn {
+  position: fixed;
+  right: 18px;
+  bottom: 88px;
+  z-index: 90;
+  width: 44px;
+  height: 44px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+  color: var(--text);
+  font-size: 18px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 8px 20px var(--shadow);
+}
+
+.scroll-top-btn.hide {
+  display: none;
+}
+
 .login-gate {
   background: var(--bg-gate);
 }
