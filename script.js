@@ -79,6 +79,7 @@ async function bootApp() {
   SearchModule.init();
   TrashModule.init();
   ExportModule.init();
+  HelpModule.init();
   initFolderUpload();
   initZipFolder();
   initPullToRefresh();

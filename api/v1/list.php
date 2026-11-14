@@ -19,7 +19,7 @@ $folders = [];
 $files = [];
 
 foreach ($entries as $name) {
-    if ($name === '.' || $name === '..' || $name === '.gitkeep' || $name === '.htaccess' || $name[0] === '.') {
+    if ($name === '.' || $name === '..' || $name === '.gitkeep' || $name === '.htaccess' || $name[0] === '.' || $name === '.trash') {
         continue;
     }
     $path = $dir . $name;

@@ -1294,7 +1294,8 @@ html[data-theme="dark"] .secondary-gate {
   display: none !important;
 }
 
-.readonly-note {
+.readonly-note,
+.public-warn {
   background: #fef3c7;
   color: #92400e;
   border-radius: 10px;
@@ -1302,6 +1303,11 @@ html[data-theme="dark"] .secondary-gate {
   font-size: 13px;
   text-align: center;
   margin-bottom: 12px;
+}
+
+.public-warn {
+  background: #dbeafe;
+  color: #1e3a8a;
 }
 
 .offline-banner {

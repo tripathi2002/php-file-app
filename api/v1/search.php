@@ -34,7 +34,7 @@ foreach ($iterator as $item) {
         break;
     }
     $name = $item->getFilename();
-    if ($name === '.gitkeep' || $name === '.htaccess' || str_starts_with($name, '.')) {
+    if ($name === '.gitkeep' || $name === '.htaccess' || $name === '.trash' || str_starts_with($name, '.')) {
         continue;
     }
     if (strpos(strtolower($name), $needle) === false) {

@@ -15,7 +15,7 @@ function app_collect_folders(string $baseDir, string $prefix = '', int $depth = 
     $entries = scandir($baseDir) ?: [];
     sort($entries, SORT_NATURAL | SORT_FLAG_CASE);
     foreach ($entries as $name) {
-        if ($name === '.' || $name === '..' || $name === '.gitkeep' || $name === '.htaccess' || ($name[0] ?? '') === '.') {
+        if ($name === '.' || $name === '..' || $name === '.gitkeep' || $name === '.htaccess' || ($name[0] ?? '') === '.' || $name === '.trash') {
             continue;
         }
         $path = $baseDir . '/' . $name;
