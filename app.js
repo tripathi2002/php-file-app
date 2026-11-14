@@ -1705,9 +1705,22 @@ window.UploadModule = {
   chunkSize: 5 * 1024 * 1024,
   transferStartedAt: 0,
   bytesSent: 0,
+  lastError: null,
 
   init() {
     this.syncControls();
+    document.getElementById("retryUploadBtn")?.addEventListener("click", () => this.retryLast());
+  },
+
+  retryLast() {
+    if (!this.fileRef) {
+      ToastModule.show("Nothing to retry", "error");
+      return;
+    }
+    this.isCancelled = false;
+    this.isPaused = false;
+    this.isUploading = false;
+    this.start();
   },
 
   formatSpeed(bytesPerSec) {
@@ -2002,7 +2015,8 @@ window.UploadModule = {
           this.isUploading = false;
         } else {
           status.innerText = "Upload Failed: " + error.message;
-          ToastModule.show(error.message, "error");
+          this.lastError = error.message;
+          ToastModule.show(error.message + " — tap Retry", "error");
           this.isUploading = false;
         }
         this.syncControls();
@@ -2250,6 +2264,14 @@ window.FilesModule = {
       search.addEventListener("input", () => {
         this.query = search.value.trim().toLowerCase();
         this.renderList();
+      });
+      search.addEventListener("keydown", (e) => {
+        if (e.key === "Escape") {
+          search.value = "";
+          this.query = "";
+          this.renderList();
+          search.blur();
+        }
       });
     }
 

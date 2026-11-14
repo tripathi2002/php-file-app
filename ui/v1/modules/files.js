@@ -22,6 +22,14 @@ window.FilesModule = {
         this.query = search.value.trim().toLowerCase();
         this.renderList();
       });
+      search.addEventListener("keydown", (e) => {
+        if (e.key === "Escape") {
+          search.value = "";
+          this.query = "";
+          this.renderList();
+          search.blur();
+        }
+      });
     }
 
     const sort = document.getElementById("fileSort");
