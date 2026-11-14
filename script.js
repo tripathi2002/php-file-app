@@ -90,6 +90,7 @@ async function bootApp() {
   SeedDemoModule.init();
   AutoRefreshModule.init();
   PrintListModule.init();
+  FilterPresetsModule.init();
   initMoreMenu();
   initFolderUpload();
   initZipFolder();
