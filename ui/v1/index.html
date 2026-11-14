@@ -114,11 +114,11 @@
 
         <div class="list-controls">
           <label class="search-wrap" for="fileSearch">
-            <span class="visually-hidden">Search</span>
+            <span class="visually-hidden">Search folder</span>
             <input
               id="fileSearch"
               type="search"
-              placeholder="Search files…  (/)"
+              placeholder="Filter this folder…  (/)"
               autocomplete="off"
             />
           </label>
@@ -129,6 +129,23 @@
             <option value="name-desc">Name Z–A</option>
             <option value="size">Largest</option>
           </select>
+        </div>
+
+        <div class="list-controls deep-search-row">
+          <label class="search-wrap" for="deepSearch">
+            <span class="visually-hidden">Search all folders</span>
+            <input
+              id="deepSearch"
+              type="search"
+              placeholder="Search all folders in this space…"
+              autocomplete="off"
+            />
+          </label>
+          <button type="button" id="clearDeepSearch" class="btn ghost">Clear</button>
+          <button type="button" id="zipFolderBtn" class="btn ghost">Zip folder</button>
+        </div>
+        <div id="deepSearchPanel" class="deep-search-panel hide">
+          <ul id="deepSearchResults"></ul>
         </div>
 
         <div class="type-filters" role="group" aria-label="Filter by type">

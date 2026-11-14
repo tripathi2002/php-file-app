@@ -1305,6 +1305,49 @@ html[data-theme="dark"] .secondary-gate {
   background: var(--accent-soft);
 }
 
+.deep-search-row {
+  margin-top: -2px;
+}
+
+.deep-search-panel {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  margin-bottom: 12px;
+  max-height: 240px;
+  overflow: auto;
+  box-shadow: 0 8px 24px var(--shadow);
+}
+
+.deep-search-panel ul {
+  list-style: none;
+  margin: 0;
+  padding: 6px;
+}
+
+.deep-result-btn {
+  width: 100%;
+  text-align: left;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  padding: 10px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.deep-result-btn:hover {
+  background: var(--accent-soft);
+}
+
+.deep-result-btn span {
+  font-size: 12px;
+  color: var(--muted);
+}
+
 .recent-strip {
   display: flex;
   gap: 8px;

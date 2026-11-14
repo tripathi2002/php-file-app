@@ -359,6 +359,30 @@ window.DensityModule = {
 };
 
 
+/* ===== modules\conflict.js ===== */
+window.ConflictModule = {
+  async resolve(fileName) {
+    return new Promise((resolve) => {
+      ModalModule.show({
+        title: "File exists",
+        message: `"${fileName}" already exists. What should we do?`,
+        confirmText: "Overwrite",
+        cancelText: "Keep both",
+        danger: true,
+        onConfirm: () => resolve("overwrite"),
+        onCancel: () => resolve("rename"),
+      });
+    });
+  },
+
+  suggestedName(name) {
+    const ext = name.includes(".") ? name.slice(name.lastIndexOf(".")) : "";
+    const base = ext ? name.slice(0, -ext.length) : name;
+    return `${base} (copy)${ext}`;
+  },
+};
+
+
 /* ===== modules\preview.js ===== */
 window.PreviewModule = {
   el: null,
@@ -751,6 +775,87 @@ window.PasteUploadModule = {
 };
 
 
+/* ===== modules\search.js ===== */
+window.SearchModule = {
+  debounce: null,
+
+  init() {
+    const input = document.getElementById("deepSearch");
+    const clearBtn = document.getElementById("clearDeepSearch");
+    if (!input) return;
+    input.addEventListener("input", () => {
+      clearTimeout(this.debounce);
+      this.debounce = setTimeout(() => this.run(input.value.trim()), 280);
+    });
+    clearBtn?.addEventListener("click", () => {
+      input.value = "";
+      this.render([]);
+      document.getElementById("deepSearchPanel")?.classList.add("hide");
+    });
+  },
+
+  async run(q) {
+    const panel = document.getElementById("deepSearchPanel");
+    const list = document.getElementById("deepSearchResults");
+    if (!panel || !list) return;
+    if (q.length < 2) {
+      panel.classList.add("hide");
+      list.innerHTML = "";
+      return;
+    }
+    panel.classList.remove("hide");
+    list.innerHTML = '<li class="empty-state">Searching…</li>';
+    try {
+      const data = await Api.request(`/search.php?q=${encodeURIComponent(q)}`);
+      this.render(data.results || [], !!data.truncated);
+    } catch (e) {
+      list.innerHTML = `<li class="empty-state">${e.message || "Search failed"}</li>`;
+    }
+  },
+
+  render(results, truncated = false) {
+    const panel = document.getElementById("deepSearchPanel");
+    const list = document.getElementById("deepSearchResults");
+    if (!panel || !list) return;
+    list.innerHTML = "";
+    if (!results.length) {
+      list.innerHTML = '<li class="empty-state">No matches in this space</li>';
+      return;
+    }
+    results.forEach((item) => {
+      const li = document.createElement("li");
+      li.className = "deep-result";
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "deep-result-btn";
+      const where = item.folder ? item.folder + "/" : "";
+      btn.innerHTML = `<strong>${item.name}</strong><span>${item.type} · ${where || "root"}</span>`;
+      btn.addEventListener("click", () => {
+        if (item.type === "folder") {
+          FilesModule.openFolder(item.path || "");
+        } else {
+          FilesModule.openFolder(item.folder || "");
+          setTimeout(() => {
+            const match = (FilesModule.files || []).find((f) => f.name === item.name);
+            if (match) PreviewModule.open(match);
+            else if (item.viewUrl) PreviewModule.open(item);
+          }, 400);
+        }
+        panel.classList.add("hide");
+      });
+      li.appendChild(btn);
+      list.appendChild(li);
+    });
+    if (truncated) {
+      const more = document.createElement("li");
+      more.className = "empty-state";
+      more.textContent = "Showing first 100 matches";
+      list.appendChild(more);
+    }
+  },
+};
+
+
 /* ===== modules\auth-gate.js ===== */
 window.AuthGate = {
   el: null,
@@ -1064,9 +1169,18 @@ window.UploadModule = {
   uploadId: null,
   queue: [],
   chunkSize: 5 * 1024 * 1024,
+  transferStartedAt: 0,
+  bytesSent: 0,
 
   init() {
     this.syncControls();
+  },
+
+  formatSpeed(bytesPerSec) {
+    if (!bytesPerSec || bytesPerSec < 1) return "";
+    if (bytesPerSec < 1024) return `${Math.round(bytesPerSec)} B/s`;
+    if (bytesPerSec < 1024 * 1024) return `${(bytesPerSec / 1024).toFixed(1)} KB/s`;
+    return `${(bytesPerSec / (1024 * 1024)).toFixed(2)} MB/s`;
   },
 
   handleFiles(files) {
@@ -1253,6 +1367,8 @@ window.UploadModule = {
     this.controller = new AbortController();
     this.totalChunks = Math.ceil(file.size / this.chunkSize) || 1;
     if (!this.uploadId) this.uploadId = this.newUploadId();
+    this.transferStartedAt = Date.now();
+    this.bytesSent = this.currentChunk * this.chunkSize;
     this.syncControls();
 
     try {
@@ -1326,7 +1442,16 @@ window.UploadModule = {
 
       const percent = Math.floor(((i + 1) / this.totalChunks) * 100);
       progressBar.style.width = percent + "%";
-      status.innerText = `Uploading ${percent}%`;
+      this.bytesSent = Math.min(file.size, (i + 1) * this.chunkSize);
+      const elapsed = Math.max(0.001, (Date.now() - this.transferStartedAt) / 1000);
+      const speed = this.formatSpeed(this.bytesSent / elapsed);
+      const left = file.size - this.bytesSent;
+      const eta =
+        this.bytesSent > 0 ? Math.max(0, Math.round(left / (this.bytesSent / elapsed))) : 0;
+      const etaLabel = eta > 60 ? `${Math.round(eta / 60)}m` : `${eta}s`;
+      status.innerText = speed
+        ? `Uploading ${percent}% · ${speed} · ETA ${etaLabel}`
+        : `Uploading ${percent}%`;
       this.currentChunk = i + 1;
     }
 
@@ -1344,8 +1469,10 @@ window.UploadModule = {
       });
     } catch (error) {
       if (error.code === 409) {
-        const overwrite = confirm(`"${file.name}" already exists. Overwrite?`);
-        if (overwrite) {
+        const choice = ConflictModule
+          ? await ConflictModule.resolve(file.name)
+          : (confirm(`"${file.name}" already exists. Overwrite?`) ? "overwrite" : "cancel");
+        if (choice === "overwrite") {
           try {
             await Api.request("/merge.php", {
               method: "POST",
@@ -1359,6 +1486,30 @@ window.UploadModule = {
                 overwrite: true,
               }),
             });
+          } catch (e2) {
+            status.innerText = "Merge Failed: " + e2.message;
+            ToastModule.show(e2.message, "error");
+            this.isUploading = false;
+            this.syncControls();
+            return;
+          }
+        } else if (choice === "rename") {
+          try {
+            const newName = ConflictModule.suggestedName(file.name);
+            await Api.request("/merge.php", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                fileName: file.name,
+                saveAs: newName,
+                totalChunks: this.totalChunks,
+                uploadId: this.uploadId,
+                folder: Api.currentFolder || "",
+                space: Api.space || "personal",
+                overwrite: false,
+              }),
+            });
+            ToastModule.show(`Saved as ${newName}`, "success");
           } catch (e2) {
             status.innerText = "Merge Failed: " + e2.message;
             ToastModule.show(e2.message, "error");
@@ -2696,8 +2847,11 @@ async function bootApp() {
   RecentModule.init();
   OfflineModule.init();
   PasteUploadModule.init();
+  SearchModule.init();
   initFolderUpload();
+  initZipFolder();
   initPullToRefresh();
+  // ConflictModule is used on demand during upload merge
 
   const ok = await AuthGate.check();
   if (ok) {
@@ -2733,6 +2887,47 @@ function closeUpload() {
   if (!Api.readOnly) fab.classList.remove("hide");
   overlay.classList.remove("show");
   overlay.setAttribute("aria-hidden", "true");
+}
+
+function initZipFolder() {
+  document.getElementById("zipFolderBtn")?.addEventListener("click", async () => {
+    if (!canUseCurrentSpace()) {
+      AuthGate.prompt();
+      return;
+    }
+    const names = (FilesModule.files || []).map((f) => f.name);
+    if (!names.length) {
+      ToastModule.show("No files in this folder to zip", "error");
+      return;
+    }
+    try {
+      const res = await fetch(API_BASE + Api.withSpace("/zip.php"), {
+        method: "POST",
+        headers: Api.authHeaders({ "Content-Type": "application/json" }),
+        body: JSON.stringify({
+          folder: Api.currentFolder || "",
+          names: names.slice(0, 30),
+        }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || "Zip failed");
+      }
+      const blob = await res.blob();
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = `folder-${Date.now()}.zip`;
+      a.click();
+      URL.revokeObjectURL(a.href);
+      ToastModule.show(
+        names.length > 30 ? "Zipped first 30 files" : "Folder zip downloaded",
+        "success"
+      );
+      ActivityModule.log?.("Zipped folder", Api.currentFolder || "root");
+    } catch (e) {
+      ToastModule.show(e.message || "Zip failed", "error");
+    }
+  });
 }
 
 function initFolderUpload() {

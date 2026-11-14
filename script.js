@@ -74,8 +74,11 @@ async function bootApp() {
   RecentModule.init();
   OfflineModule.init();
   PasteUploadModule.init();
+  SearchModule.init();
   initFolderUpload();
+  initZipFolder();
   initPullToRefresh();
+  // ConflictModule is used on demand during upload merge
 
   const ok = await AuthGate.check();
   if (ok) {
@@ -111,6 +114,47 @@ function closeUpload() {
   if (!Api.readOnly) fab.classList.remove("hide");
   overlay.classList.remove("show");
   overlay.setAttribute("aria-hidden", "true");
+}
+
+function initZipFolder() {
+  document.getElementById("zipFolderBtn")?.addEventListener("click", async () => {
+    if (!canUseCurrentSpace()) {
+      AuthGate.prompt();
+      return;
+    }
+    const names = (FilesModule.files || []).map((f) => f.name);
+    if (!names.length) {
+      ToastModule.show("No files in this folder to zip", "error");
+      return;
+    }
+    try {
+      const res = await fetch(API_BASE + Api.withSpace("/zip.php"), {
+        method: "POST",
+        headers: Api.authHeaders({ "Content-Type": "application/json" }),
+        body: JSON.stringify({
+          folder: Api.currentFolder || "",
+          names: names.slice(0, 30),
+        }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || "Zip failed");
+      }
+      const blob = await res.blob();
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = `folder-${Date.now()}.zip`;
+      a.click();
+      URL.revokeObjectURL(a.href);
+      ToastModule.show(
+        names.length > 30 ? "Zipped first 30 files" : "Folder zip downloaded",
+        "success"
+      );
+      ActivityModule.log?.("Zipped folder", Api.currentFolder || "root");
+    } catch (e) {
+      ToastModule.show(e.message || "Zip failed", "error");
+    }
+  });
 }
 
 function initFolderUpload() {

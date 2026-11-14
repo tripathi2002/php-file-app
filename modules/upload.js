@@ -9,9 +9,18 @@ window.UploadModule = {
   uploadId: null,
   queue: [],
   chunkSize: 5 * 1024 * 1024,
+  transferStartedAt: 0,
+  bytesSent: 0,
 
   init() {
     this.syncControls();
+  },
+
+  formatSpeed(bytesPerSec) {
+    if (!bytesPerSec || bytesPerSec < 1) return "";
+    if (bytesPerSec < 1024) return `${Math.round(bytesPerSec)} B/s`;
+    if (bytesPerSec < 1024 * 1024) return `${(bytesPerSec / 1024).toFixed(1)} KB/s`;
+    return `${(bytesPerSec / (1024 * 1024)).toFixed(2)} MB/s`;
   },
 
   handleFiles(files) {
@@ -198,6 +207,8 @@ window.UploadModule = {
     this.controller = new AbortController();
     this.totalChunks = Math.ceil(file.size / this.chunkSize) || 1;
     if (!this.uploadId) this.uploadId = this.newUploadId();
+    this.transferStartedAt = Date.now();
+    this.bytesSent = this.currentChunk * this.chunkSize;
     this.syncControls();
 
     try {
@@ -271,7 +282,16 @@ window.UploadModule = {
 
       const percent = Math.floor(((i + 1) / this.totalChunks) * 100);
       progressBar.style.width = percent + "%";
-      status.innerText = `Uploading ${percent}%`;
+      this.bytesSent = Math.min(file.size, (i + 1) * this.chunkSize);
+      const elapsed = Math.max(0.001, (Date.now() - this.transferStartedAt) / 1000);
+      const speed = this.formatSpeed(this.bytesSent / elapsed);
+      const left = file.size - this.bytesSent;
+      const eta =
+        this.bytesSent > 0 ? Math.max(0, Math.round(left / (this.bytesSent / elapsed))) : 0;
+      const etaLabel = eta > 60 ? `${Math.round(eta / 60)}m` : `${eta}s`;
+      status.innerText = speed
+        ? `Uploading ${percent}% · ${speed} · ETA ${etaLabel}`
+        : `Uploading ${percent}%`;
       this.currentChunk = i + 1;
     }
 
@@ -289,8 +309,10 @@ window.UploadModule = {
       });
     } catch (error) {
       if (error.code === 409) {
-        const overwrite = confirm(`"${file.name}" already exists. Overwrite?`);
-        if (overwrite) {
+        const choice = ConflictModule
+          ? await ConflictModule.resolve(file.name)
+          : (confirm(`"${file.name}" already exists. Overwrite?`) ? "overwrite" : "cancel");
+        if (choice === "overwrite") {
           try {
             await Api.request("/merge.php", {
               method: "POST",
@@ -304,6 +326,30 @@ window.UploadModule = {
                 overwrite: true,
               }),
             });
+          } catch (e2) {
+            status.innerText = "Merge Failed: " + e2.message;
+            ToastModule.show(e2.message, "error");
+            this.isUploading = false;
+            this.syncControls();
+            return;
+          }
+        } else if (choice === "rename") {
+          try {
+            const newName = ConflictModule.suggestedName(file.name);
+            await Api.request("/merge.php", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                fileName: file.name,
+                saveAs: newName,
+                totalChunks: this.totalChunks,
+                uploadId: this.uploadId,
+                folder: Api.currentFolder || "",
+                space: Api.space || "personal",
+                overwrite: false,
+              }),
+            });
+            ToastModule.show(`Saved as ${newName}`, "success");
           } catch (e2) {
             status.innerText = "Merge Failed: " + e2.message;
             ToastModule.show(e2.message, "error");

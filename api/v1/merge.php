@@ -12,6 +12,7 @@ checkRateLimit(2, 1);
 $data = json_decode(file_get_contents('php://input'), true) ?? [];
 
 $fileName = app_sanitize_filename($data['fileName'] ?? null);
+$saveAs = isset($data['saveAs']) ? app_sanitize_filename($data['saveAs']) : null;
 $totalChunks = app_sanitize_chunk_index($data['totalChunks'] ?? null);
 $uploadId = app_sanitize_upload_id($data['uploadId'] ?? null);
 $folder = app_sanitize_folder($data['folder'] ?? '');
@@ -21,7 +22,12 @@ if ($fileName === null || $totalChunks === null || $totalChunks < 1) {
     app_json(['error' => 'Invalid request'], 400);
 }
 
-if (!app_extension_allowed($fileName)) {
+$outputName = $saveAs ?? $fileName;
+if ($outputName === null) {
+    app_json(['error' => 'Invalid request'], 400);
+}
+
+if (!app_extension_allowed($fileName) || !app_extension_allowed($outputName)) {
     app_json([
         'error' => 'Invalid file type',
         'allowedExtensions' => app_allowed_extensions(),
@@ -48,7 +54,7 @@ if ($folder !== '' && !app_folder_exists($folder)) {
 }
 
 app_ensure_dir(app_folder_path($folder), 0755);
-$finalPath = app_folder_path($folder) . $fileName;
+$finalPath = app_folder_path($folder) . $outputName;
 
 $mergedSize = 0;
 for ($i = 0; $i < $totalChunks; $i++) {
@@ -112,6 +118,7 @@ foreach (glob($chunkPath . '/chunk_*') ?: [] as $chunk) {
 
 app_json([
     'message' => 'File merged successfully',
-    'file' => $fileName,
+    'file' => $outputName,
+    'original' => $fileName,
     'folder' => $folder,
 ]);
