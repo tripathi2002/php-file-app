@@ -678,7 +678,8 @@ window.FilesModule = {
     const list = document.getElementById("fileList");
     if (!list) return;
     list.innerHTML = "";
-    const { folders, files } = this.visibleItems();
+    let { folders, files } = this.visibleItems();
+    const foldersFirst = SortPreferenceModule?.preferFolders?.() !== false;
 
     if (!folders.length && !files.length) {
       const empty = document.createElement("li");
@@ -717,12 +718,21 @@ window.FilesModule = {
       return;
     }
 
-    folders.forEach((folder, index) => {
-      list.appendChild(this.renderFolderRow(folder, index));
-    });
-    files.forEach((file, index) => {
-      list.appendChild(this.renderFileRow(file, index));
-    });
+    const appendFolders = () =>
+      folders.forEach((folder, index) => {
+        list.appendChild(this.renderFolderRow(folder, index));
+      });
+    const appendFiles = () =>
+      files.forEach((file, index) => {
+        list.appendChild(this.renderFileRow(file, index));
+      });
+    if (foldersFirst) {
+      appendFolders();
+      appendFiles();
+    } else {
+      appendFiles();
+      appendFolders();
+    }
     this.updateSelectionBar();
   },
 

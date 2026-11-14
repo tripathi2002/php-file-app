@@ -1720,6 +1720,36 @@ window.LastErrorModule = {
 };
 
 
+/* ===== modules\sort-folders-first.js ===== */
+// Hook already folders-first in FilesModule.visibleItems; this toggles files-first.
+window.SortPreferenceModule = {
+  KEY: "fileAppFoldersFirst",
+
+  init() {
+    this.foldersFirst = localStorage.getItem(this.KEY) !== "0";
+    document.getElementById("foldersFirstBtn")?.addEventListener("click", () => this.toggle());
+    this.sync();
+  },
+
+  toggle() {
+    this.foldersFirst = !this.foldersFirst;
+    localStorage.setItem(this.KEY, this.foldersFirst ? "1" : "0");
+    this.sync();
+    FilesModule.renderList();
+    ToastModule.show(this.foldersFirst ? "Folders first" : "Files first", "info");
+  },
+
+  sync() {
+    const btn = document.getElementById("foldersFirstBtn");
+    if (btn) btn.textContent = this.foldersFirst ? "Folders first ✓" : "Files first";
+  },
+
+  preferFolders() {
+    return this.foldersFirst !== false;
+  },
+};
+
+
 /* ===== modules\auth-gate.js ===== */
 window.AuthGate = {
   el: null,
@@ -3352,7 +3382,8 @@ window.FilesModule = {
     const list = document.getElementById("fileList");
     if (!list) return;
     list.innerHTML = "";
-    const { folders, files } = this.visibleItems();
+    let { folders, files } = this.visibleItems();
+    const foldersFirst = SortPreferenceModule?.preferFolders?.() !== false;
 
     if (!folders.length && !files.length) {
       const empty = document.createElement("li");
@@ -3391,12 +3422,21 @@ window.FilesModule = {
       return;
     }
 
-    folders.forEach((folder, index) => {
-      list.appendChild(this.renderFolderRow(folder, index));
-    });
-    files.forEach((file, index) => {
-      list.appendChild(this.renderFileRow(file, index));
-    });
+    const appendFolders = () =>
+      folders.forEach((folder, index) => {
+        list.appendChild(this.renderFolderRow(folder, index));
+      });
+    const appendFiles = () =>
+      files.forEach((file, index) => {
+        list.appendChild(this.renderFileRow(file, index));
+      });
+    if (foldersFirst) {
+      appendFolders();
+      appendFiles();
+    } else {
+      appendFiles();
+      appendFolders();
+    }
     this.updateSelectionBar();
   },
 
@@ -4237,6 +4277,7 @@ async function bootApp() {
   CopyFolderUrlModule.init();
   SelectByTypeModule.init();
   LastErrorModule.init();
+  SortPreferenceModule.init();
   initMoreMenu();
   initFolderUpload();
   initZipFolder();
