@@ -15,17 +15,28 @@ window.HealthBanner = {
 
   async check() {
     try {
+      const t0 = performance.now();
       const res = await fetch(`${SERVER}/api/${APP_API_VERSION}/health.php`, {
         cache: "no-store",
       });
       const data = await res.json();
+      const ms = Math.round(performance.now() - t0);
       if (!res.ok || data.status !== "ok") {
         this.show(
           "Storage is not writable. Uploads will fail until the server folders are fixed."
         );
       } else {
         this.hide();
+        if (ms > 1200) {
+          ToastModule.show?.(`API is slow (${ms} ms)`, "info");
+        }
       }
+      try {
+        await fetch(`${SERVER}/api/${APP_API_VERSION}/ping.php?space=${encodeURIComponent(Api.space || "public")}`, {
+          cache: "no-store",
+          headers: Api.authHeaders?.() || {},
+        });
+      } catch (e) {}
     } catch (e) {
       this.show("Cannot reach the API health check.");
     }

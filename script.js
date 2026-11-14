@@ -1,4 +1,4 @@
-const APP_UI_VERSION = "1.7.0";
+const APP_UI_VERSION = "1.8.0";
 const APP_API_VERSION = "v1";
 
 function detectServerBase() {

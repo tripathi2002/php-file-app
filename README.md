@@ -2,7 +2,7 @@
 
 Shared **public** space (no login) and private **personal** spaces (mobile + PIN) on shared hosting.
 
-**Current versions:** API `v1` · UI `1.7.0`
+**Current versions:** API `v1` · UI `1.8.0`
 
 ---
 
@@ -17,6 +17,14 @@ Shared **public** space (no login) and private **personal** spaces (mobile + PIN
 Public files: `storage/public/`. Personal: `storage/users/<id>/`.
 
 ---
+
+## Features (1.8)
+
+- Deep search across all folders · zip current folder  
+- Upload speed/ETA · keep-both on conflicts  
+- Slideshow · SHA-256 in details · change PIN  
+- Idle auto-lock · upload desktop alerts · revoke other sessions  
+- Bulk favorite · better folder sorting  
 
 ## Features (1.7)
 

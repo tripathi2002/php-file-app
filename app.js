@@ -87,6 +87,16 @@ window.Api = {
       throw err;
     }
 
+    if (res.status === 429) {
+      const retry = res.headers.get("Retry-After");
+      const err = new Error(
+        data?.error || (retry ? `Too many requests — wait ${retry}s` : "Too many requests")
+      );
+      err.code = 429;
+      err.data = data;
+      throw err;
+    }
+
     if (!res.ok) {
       const err = new Error(data?.error || `Request failed (${res.status})`);
       err.code = res.status;
@@ -1287,17 +1297,28 @@ window.HealthBanner = {
 
   async check() {
     try {
+      const t0 = performance.now();
       const res = await fetch(`${SERVER}/api/${APP_API_VERSION}/health.php`, {
         cache: "no-store",
       });
       const data = await res.json();
+      const ms = Math.round(performance.now() - t0);
       if (!res.ok || data.status !== "ok") {
         this.show(
           "Storage is not writable. Uploads will fail until the server folders are fixed."
         );
       } else {
         this.hide();
+        if (ms > 1200) {
+          ToastModule.show?.(`API is slow (${ms} ms)`, "info");
+        }
       }
+      try {
+        await fetch(`${SERVER}/api/${APP_API_VERSION}/ping.php?space=${encodeURIComponent(Api.space || "public")}`, {
+          cache: "no-store",
+          headers: Api.authHeaders?.() || {},
+        });
+      } catch (e) {}
     } catch (e) {
       this.show("Cannot reach the API health check.");
     }
@@ -1866,6 +1887,7 @@ window.FilesModule = {
     document.getElementById("batchDeleteBtn")?.addEventListener("click", () => this.batchDelete());
     document.getElementById("batchZipBtn")?.addEventListener("click", () => this.batchZip());
     document.getElementById("batchMoveBtn")?.addEventListener("click", () => this.batchMove());
+    document.getElementById("batchFavBtn")?.addEventListener("click", () => this.favoriteSelected());
     document.getElementById("viewToggleBtn")?.addEventListener("click", () => this.toggleView());
     document.getElementById("newNoteBtn")?.addEventListener("click", () => this.createNote());
     document.getElementById("emptyFolderBtn")?.addEventListener("click", () => this.emptyCurrentFolder());
@@ -2265,14 +2287,40 @@ window.FilesModule = {
     const bySize = (a, b) => (a.size || 0) - (b.size || 0);
     const byDate = (a, b) => (a.mtime || 0) - (b.mtime || 0);
 
-    folders = [...folders].sort(byName);
-    if (sortKey === "name") files = [...files].sort(byName);
-    else if (sortKey === "name-desc") files = [...files].sort((a, b) => byName(b, a));
-    else if (sortKey === "size") files = [...files].sort((a, b) => bySize(b, a));
-    else if (sortKey === "oldest") files = [...files].sort(byDate);
-    else files = [...files].sort((a, b) => byDate(b, a));
+    if (sortKey === "name") {
+      folders = [...folders].sort(byName);
+      files = [...files].sort(byName);
+    } else if (sortKey === "name-desc") {
+      folders = [...folders].sort((a, b) => byName(b, a));
+      files = [...files].sort((a, b) => byName(b, a));
+    } else if (sortKey === "size") {
+      folders = [...folders].sort(byName);
+      files = [...files].sort((a, b) => bySize(b, a));
+    } else if (sortKey === "oldest") {
+      folders = [...folders].sort(byDate);
+      files = [...files].sort(byDate);
+    } else {
+      folders = [...folders].sort((a, b) => byDate(b, a));
+      files = [...files].sort((a, b) => byDate(b, a));
+    }
 
     return { folders, files };
+  },
+
+  favoriteSelected() {
+    const items = this.selectedItems();
+    if (!items.length) {
+      ToastModule.show("Select items first", "error");
+      return;
+    }
+    items.forEach((item) => {
+      const id = this.favId(item.name, item.isFolder);
+      let favs = this.getFavorites();
+      if (!favs.includes(id)) favs.push(id);
+      localStorage.setItem(this.favoritesKey, JSON.stringify(favs));
+    });
+    ToastModule.show(`Favorited ${items.length}`, "success");
+    this.renderList();
   },
 
   renderList() {
@@ -2947,6 +2995,11 @@ window.ShortcutsModule = {
       FilesModule.createNote?.();
       return;
     }
+    if ((e.key === "s" || e.key === "S") && !e.ctrlKey && !e.metaKey) {
+      e.preventDefault();
+      FilesModule.startSlideshow?.();
+      return;
+    }
     if ((e.key === "r" || e.key === "R") && !e.ctrlKey && !e.metaKey) {
       e.preventDefault();
       FilesModule.loadFiles();
@@ -2974,7 +3027,7 @@ window.ShortcutsModule = {
 
 
 /* ===== script.js ===== */
-const APP_UI_VERSION = "1.7.0";
+const APP_UI_VERSION = "1.8.0";
 const APP_API_VERSION = "v1";
 
 function detectServerBase() {

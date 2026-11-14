@@ -52,6 +52,7 @@ window.FilesModule = {
     document.getElementById("batchDeleteBtn")?.addEventListener("click", () => this.batchDelete());
     document.getElementById("batchZipBtn")?.addEventListener("click", () => this.batchZip());
     document.getElementById("batchMoveBtn")?.addEventListener("click", () => this.batchMove());
+    document.getElementById("batchFavBtn")?.addEventListener("click", () => this.favoriteSelected());
     document.getElementById("viewToggleBtn")?.addEventListener("click", () => this.toggleView());
     document.getElementById("newNoteBtn")?.addEventListener("click", () => this.createNote());
     document.getElementById("emptyFolderBtn")?.addEventListener("click", () => this.emptyCurrentFolder());
@@ -451,14 +452,40 @@ window.FilesModule = {
     const bySize = (a, b) => (a.size || 0) - (b.size || 0);
     const byDate = (a, b) => (a.mtime || 0) - (b.mtime || 0);
 
-    folders = [...folders].sort(byName);
-    if (sortKey === "name") files = [...files].sort(byName);
-    else if (sortKey === "name-desc") files = [...files].sort((a, b) => byName(b, a));
-    else if (sortKey === "size") files = [...files].sort((a, b) => bySize(b, a));
-    else if (sortKey === "oldest") files = [...files].sort(byDate);
-    else files = [...files].sort((a, b) => byDate(b, a));
+    if (sortKey === "name") {
+      folders = [...folders].sort(byName);
+      files = [...files].sort(byName);
+    } else if (sortKey === "name-desc") {
+      folders = [...folders].sort((a, b) => byName(b, a));
+      files = [...files].sort((a, b) => byName(b, a));
+    } else if (sortKey === "size") {
+      folders = [...folders].sort(byName);
+      files = [...files].sort((a, b) => bySize(b, a));
+    } else if (sortKey === "oldest") {
+      folders = [...folders].sort(byDate);
+      files = [...files].sort(byDate);
+    } else {
+      folders = [...folders].sort((a, b) => byDate(b, a));
+      files = [...files].sort((a, b) => byDate(b, a));
+    }
 
     return { folders, files };
+  },
+
+  favoriteSelected() {
+    const items = this.selectedItems();
+    if (!items.length) {
+      ToastModule.show("Select items first", "error");
+      return;
+    }
+    items.forEach((item) => {
+      const id = this.favId(item.name, item.isFolder);
+      let favs = this.getFavorites();
+      if (!favs.includes(id)) favs.push(id);
+      localStorage.setItem(this.favoritesKey, JSON.stringify(favs));
+    });
+    ToastModule.show(`Favorited ${items.length}`, "success");
+    this.renderList();
   },
 
   renderList() {

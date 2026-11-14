@@ -84,6 +84,16 @@ window.Api = {
       throw err;
     }
 
+    if (res.status === 429) {
+      const retry = res.headers.get("Retry-After");
+      const err = new Error(
+        data?.error || (retry ? `Too many requests — wait ${retry}s` : "Too many requests")
+      );
+      err.code = 429;
+      err.data = data;
+      throw err;
+    }
+
     if (!res.ok) {
       const err = new Error(data?.error || `Request failed (${res.status})`);
       err.code = res.status;
