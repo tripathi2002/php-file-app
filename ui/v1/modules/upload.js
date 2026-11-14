@@ -152,6 +152,9 @@ window.UploadModule = {
         if (error.name === "AbortError") {
           status.innerText = this.isCancelled ? "Upload Cancelled" : "Upload Paused";
           this.currentChunk = i;
+          if (this.isCancelled) {
+            this.isUploading = false;
+          }
         } else if (error.authRequired) {
           status.innerText = "Unlock required — set your access key";
           AuthGate.prompt();

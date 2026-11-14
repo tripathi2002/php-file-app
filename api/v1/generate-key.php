@@ -35,5 +35,5 @@ echo json_encode([
     'accessKey' => $token,
     'expiresIn' => $days . ' days',
     'expiresAt' => gmdate('c', $expires),
-    'hint' => 'Paste this key in the File Upload UI (lock icon). Auth auto-enables once a key exists.',
+    'hint' => 'Paste this key in the File Upload UI (Key button). APIs require a key before any file access.',
 ], JSON_PRETTY_PRINT) . PHP_EOL;

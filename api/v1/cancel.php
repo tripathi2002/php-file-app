@@ -18,7 +18,8 @@ $fileKey = $uploadId !== null
 $chunkPath = CHUNK_DIR . $fileKey;
 
 if (!is_dir($chunkPath)) {
-    app_json(['error' => 'Upload session not found', 'cancelled' => false], 404);
+    // Idempotent: cancelling a missing session is still success for the UI
+    app_json(['message' => 'Cancelled', 'cancelled' => false, 'existed' => false]);
 }
 
 foreach (glob($chunkPath . '/chunk_*') ?: [] as $chunk) {
@@ -26,4 +27,4 @@ foreach (glob($chunkPath . '/chunk_*') ?: [] as $chunk) {
 }
 @rmdir($chunkPath);
 
-app_json(['message' => 'Cancelled', 'cancelled' => true]);
+app_json(['message' => 'Cancelled', 'cancelled' => true, 'existed' => true]);

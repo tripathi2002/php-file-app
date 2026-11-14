@@ -51,9 +51,13 @@ window.FilesModule = {
 
     try {
       const data = await Api.request("/list.php");
-      const files = Array.isArray(data) ? data : data.files || [];
-      Api.limits = data.limits || null;
-      Api.allowedExtensions = data.allowedExtensions || null;
+      // Support both legacy string[] and 1.3 object list payloads
+      const files = Array.isArray(data)
+        ? data.map((name) => (typeof name === "string" ? { name } : name))
+        : data.files || [];
+      Api.limits = (!Array.isArray(data) && data.limits) || null;
+      Api.allowedExtensions =
+        (!Array.isArray(data) && data.allowedExtensions) || null;
       this.updateQuota(Api.limits);
 
       const accept = data.accept || (Api.allowedExtensions || []).map((e) => `.${e}`).join(",");
@@ -155,12 +159,28 @@ window.FilesModule = {
         view.target = "_blank";
         view.rel = "noopener noreferrer";
         view.textContent = "View";
-        view.href = Api.absoluteUrl(file.viewUrl || file.downloadUrl);
+        if (file.viewUrl || file.downloadUrl) {
+          view.href = Api.absoluteUrl(file.viewUrl || file.downloadUrl);
+        } else {
+          view.href = "#";
+          view.addEventListener("click", (e) => {
+            e.preventDefault();
+            this.openAuthenticated(name, true);
+          });
+        }
 
         const download = document.createElement("a");
         download.className = "btn download";
         download.textContent = "Download";
-        download.href = Api.absoluteUrl(file.downloadUrl || file.viewUrl);
+        if (file.downloadUrl || file.viewUrl) {
+          download.href = Api.absoluteUrl(file.downloadUrl || file.viewUrl);
+        } else {
+          download.href = "#";
+          download.addEventListener("click", (e) => {
+            e.preventDefault();
+            this.openAuthenticated(name, false);
+          });
+        }
 
         actions.append(view, download);
         li.append(main, actions);
@@ -178,6 +198,38 @@ window.FilesModule = {
       list.appendChild(err);
       if (error.authRequired) AuthGate.prompt();
       else ToastModule.show(error.message || "Failed to load files", "error");
+    }
+  },
+
+  async openAuthenticated(fileName, view) {
+    try {
+      const q = view ? "&view=1" : "";
+      const res = await fetch(
+        `${API_BASE}/download.php?file=${encodeURIComponent(fileName)}${q}`,
+        { headers: Api.authHeaders() }
+      );
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        const err = new Error(data.error || `Download failed (${res.status})`);
+        err.authRequired = res.status === 401 || res.status === 503 || !!data.authRequired;
+        throw err;
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      if (view) {
+        window.open(url, "_blank", "noopener,noreferrer");
+      } else {
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = fileName;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+      }
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    } catch (error) {
+      if (error.authRequired) AuthGate.prompt();
+      ToastModule.show(error.message || "Download failed", "error");
     }
   },
 

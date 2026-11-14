@@ -21,9 +21,9 @@ foreach ($entries as $name) {
         continue;
     }
     $ext = strtolower(pathinfo($name, PATHINFO_EXTENSION));
-    $mime = mime_content_type($path) ?: 'application/octet-stream';
-    $mtime = filemtime($path) ?: time();
-    $size = filesize($path) ?: 0;
+    $mime = @mime_content_type($path) ?: 'application/octet-stream';
+    $mtime = @filemtime($path) ?: time();
+    $size = @filesize($path) ?: 0;
 
     $files[] = [
         'name' => $name,
@@ -32,10 +32,10 @@ foreach ($entries as $name) {
         'mtimeIso' => gmdate('c', $mtime),
         'ext' => $ext,
         'mime' => $mime,
-        'viewUrl' => app_signed_download_url($name, true, 300),
-        'downloadUrl' => app_signed_download_url($name, false, 300),
+        'viewUrl' => app_signed_download_url($name, true, 3600),
+        'downloadUrl' => app_signed_download_url($name, false, 3600),
         'thumbUrl' => str_starts_with($mime, 'image/')
-            ? app_signed_download_url($name, true, 300)
+            ? app_signed_download_url($name, true, 3600)
             : null,
     ];
 }

@@ -15,7 +15,11 @@ window.Api = {
   authHeaders(extra = {}) {
     const headers = { ...extra };
     const key = this.getAccessKey();
-    if (key) headers.Authorization = `Bearer ${key}`;
+    if (key) {
+      // Send both — LiteSpeed/Hostinger often strips Authorization
+      headers.Authorization = `Bearer ${key}`;
+      headers["X-Access-Key"] = key;
+    }
     return headers;
   },
 

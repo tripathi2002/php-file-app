@@ -49,7 +49,7 @@ function app_send_security_headers(): void
     header('X-Frame-Options: DENY');
     header('Referrer-Policy: no-referrer');
     header('Permissions-Policy: geolocation=(), microphone=(), camera=()');
-    header("Content-Security-Policy: default-src 'self'; img-src 'self' blob: data:; media-src 'self' blob:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'");
+    header("Content-Security-Policy: default-src 'self'; img-src 'self' blob: data:; media-src 'self' blob:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'");
     if (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') {
         header('Strict-Transport-Security: max-age=31536000; includeSubDomains');
     }
@@ -74,7 +74,7 @@ function app_json(array $payload, int $status = 200): void
 function app_ensure_dir(string $dir, int $mode = 0755): void
 {
     if (!is_dir($dir)) {
-        mkdir($dir, $mode, true);
+        @mkdir($dir, $mode, true);
     }
 }
 
@@ -154,13 +154,17 @@ function app_dir_size(string $dir): int
     if (!is_dir($dir)) {
         return 0;
     }
-    $iterator = new RecursiveIteratorIterator(
-        new RecursiveDirectoryIterator($dir, FilesystemIterator::SKIP_DOTS)
-    );
-    foreach ($iterator as $file) {
-        if ($file->isFile()) {
-            $total += $file->getSize();
+    try {
+        $iterator = new RecursiveIteratorIterator(
+            new RecursiveDirectoryIterator($dir, FilesystemIterator::SKIP_DOTS)
+        );
+        foreach ($iterator as $file) {
+            if ($file->isFile()) {
+                $total += (int) $file->getSize();
+            }
         }
+    } catch (Throwable $e) {
+        return $total;
     }
     return $total;
 }
@@ -198,7 +202,12 @@ function app_has_any_token(): bool
         return false;
     }
     foreach (glob($dir . '/*.json') ?: [] as $file) {
-        return true;
+        // Ignore empty/corrupt placeholder files
+        $raw = @file_get_contents($file);
+        $data = json_decode($raw ?: '', true);
+        if (is_array($data) && !empty($data['token'])) {
+            return true;
+        }
     }
     return false;
 }

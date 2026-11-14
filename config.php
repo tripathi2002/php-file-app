@@ -45,7 +45,7 @@ foreach ([STORAGE_ROOT, UPLOAD_DIR, CHUNK_DIR, __DIR__ . '/uploads', __DIR__ . '
     if (is_dir($protected)) {
         $deny = $protected . '/.htaccess';
         if (!is_file($deny)) {
-            file_put_contents($deny, "Require all denied\n<IfModule !mod_authz_core.c>\nOrder deny,allow\nDeny from all\n</IfModule>\n");
+            @file_put_contents($deny, "Require all denied\n<IfModule !mod_authz_core.c>\nOrder deny,allow\nDeny from all\n</IfModule>\n");
         }
     }
 }

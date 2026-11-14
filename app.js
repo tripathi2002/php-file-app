@@ -18,7 +18,11 @@ window.Api = {
   authHeaders(extra = {}) {
     const headers = { ...extra };
     const key = this.getAccessKey();
-    if (key) headers.Authorization = `Bearer ${key}`;
+    if (key) {
+      // Send both — LiteSpeed/Hostinger often strips Authorization
+      headers.Authorization = `Bearer ${key}`;
+      headers["X-Access-Key"] = key;
+    }
     return headers;
   },
 
@@ -461,6 +465,9 @@ window.UploadModule = {
         if (error.name === "AbortError") {
           status.innerText = this.isCancelled ? "Upload Cancelled" : "Upload Paused";
           this.currentChunk = i;
+          if (this.isCancelled) {
+            this.isUploading = false;
+          }
         } else if (error.authRequired) {
           status.innerText = "Unlock required — set your access key";
           AuthGate.prompt();
@@ -685,9 +692,13 @@ window.FilesModule = {
 
     try {
       const data = await Api.request("/list.php");
-      const files = Array.isArray(data) ? data : data.files || [];
-      Api.limits = data.limits || null;
-      Api.allowedExtensions = data.allowedExtensions || null;
+      // Support both legacy string[] and 1.3 object list payloads
+      const files = Array.isArray(data)
+        ? data.map((name) => (typeof name === "string" ? { name } : name))
+        : data.files || [];
+      Api.limits = (!Array.isArray(data) && data.limits) || null;
+      Api.allowedExtensions =
+        (!Array.isArray(data) && data.allowedExtensions) || null;
       this.updateQuota(Api.limits);
 
       const accept = data.accept || (Api.allowedExtensions || []).map((e) => `.${e}`).join(",");
@@ -789,12 +800,28 @@ window.FilesModule = {
         view.target = "_blank";
         view.rel = "noopener noreferrer";
         view.textContent = "View";
-        view.href = Api.absoluteUrl(file.viewUrl || file.downloadUrl);
+        if (file.viewUrl || file.downloadUrl) {
+          view.href = Api.absoluteUrl(file.viewUrl || file.downloadUrl);
+        } else {
+          view.href = "#";
+          view.addEventListener("click", (e) => {
+            e.preventDefault();
+            this.openAuthenticated(name, true);
+          });
+        }
 
         const download = document.createElement("a");
         download.className = "btn download";
         download.textContent = "Download";
-        download.href = Api.absoluteUrl(file.downloadUrl || file.viewUrl);
+        if (file.downloadUrl || file.viewUrl) {
+          download.href = Api.absoluteUrl(file.downloadUrl || file.viewUrl);
+        } else {
+          download.href = "#";
+          download.addEventListener("click", (e) => {
+            e.preventDefault();
+            this.openAuthenticated(name, false);
+          });
+        }
 
         actions.append(view, download);
         li.append(main, actions);
@@ -812,6 +839,38 @@ window.FilesModule = {
       list.appendChild(err);
       if (error.authRequired) AuthGate.prompt();
       else ToastModule.show(error.message || "Failed to load files", "error");
+    }
+  },
+
+  async openAuthenticated(fileName, view) {
+    try {
+      const q = view ? "&view=1" : "";
+      const res = await fetch(
+        `${API_BASE}/download.php?file=${encodeURIComponent(fileName)}${q}`,
+        { headers: Api.authHeaders() }
+      );
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        const err = new Error(data.error || `Download failed (${res.status})`);
+        err.authRequired = res.status === 401 || res.status === 503 || !!data.authRequired;
+        throw err;
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      if (view) {
+        window.open(url, "_blank", "noopener,noreferrer");
+      } else {
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = fileName;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+      }
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    } catch (error) {
+      if (error.authRequired) AuthGate.prompt();
+      ToastModule.show(error.message || "Download failed", "error");
     }
   },
 
@@ -917,16 +976,16 @@ const APP_UI_VERSION = "1.3.0";
 const APP_API_VERSION = "v1";
 
 function detectServerBase() {
-  const path = window.location.pathname.replace(/\/+$/, "");
+  let path = window.location.pathname || "";
+  // Normalize trailing slash except for domain root
+  path = path.replace(/\/+$/, "") || "";
+
   if (path.endsWith("/index.html")) {
-    const without = path.slice(0, -"/index.html".length);
-    if (/\/ui\/v\d+$/i.test(without)) {
-      return without.replace(/\/ui\/v\d+$/i, "") || "";
-    }
-    return without || "";
+    path = path.slice(0, -"/index.html".length);
   }
+  // ui/v1 snapshot lives under the app root
   if (/\/ui\/v\d+$/i.test(path)) {
-    return path.replace(/\/ui\/v\d+$/i, "") || "";
+    path = path.replace(/\/ui\/v\d+$/i, "");
   }
   return path || "";
 }
@@ -946,8 +1005,33 @@ async function resolveApiBase() {
   API_BASE = SERVER;
 }
 
+function bindUiEvents() {
+  const keyBtn = document.getElementById("keyBtn");
+  const fab = document.getElementById("fab");
+  const overlay = document.getElementById("overlay");
+  const uploadBox = document.getElementById("uploadBox");
+  const startBtn = document.getElementById("startUploadBtn");
+  const pauseBtn = document.getElementById("pauseUploadBtn");
+  const resumeBtn = document.getElementById("resumeUploadBtn");
+  const cancelBtn = document.getElementById("cancelUploadBtn");
+
+  if (keyBtn) keyBtn.addEventListener("click", () => AuthGate.openSettings());
+  if (fab) fab.addEventListener("click", () => openUpload());
+  if (overlay) {
+    overlay.addEventListener("click", () => closeUpload());
+  }
+  if (uploadBox) {
+    uploadBox.addEventListener("click", (e) => e.stopPropagation());
+  }
+  if (startBtn) startBtn.addEventListener("click", () => UploadModule.start());
+  if (pauseBtn) pauseBtn.addEventListener("click", () => UploadModule.pause());
+  if (resumeBtn) resumeBtn.addEventListener("click", () => UploadModule.resume());
+  if (cancelBtn) cancelBtn.addEventListener("click", () => UploadModule.cancel());
+}
+
 async function bootApp() {
   await resolveApiBase();
+  bindUiEvents();
   ToastModule.init();
   ModalModule.init();
   HealthBanner.init();
@@ -957,14 +1041,20 @@ async function bootApp() {
 }
 
 function openUpload() {
-  document.getElementById("fab").classList.add("hide");
-  document.getElementById("overlay").classList.add("show");
+  const fab = document.getElementById("fab");
+  const overlay = document.getElementById("overlay");
+  fab.classList.add("hide");
+  overlay.classList.add("show");
+  overlay.setAttribute("aria-hidden", "false");
   UploadModule.syncControls();
 }
 
 function closeUpload() {
-  document.getElementById("fab").classList.remove("hide");
-  document.getElementById("overlay").classList.remove("show");
+  const fab = document.getElementById("fab");
+  const overlay = document.getElementById("overlay");
+  fab.classList.remove("hide");
+  overlay.classList.remove("show");
+  overlay.setAttribute("aria-hidden", "true");
 }
 
 if (document.readyState === "loading") {
