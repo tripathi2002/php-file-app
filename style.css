@@ -993,6 +993,19 @@ html[data-density="compact"] .toolbar .btn {
   font-size: 12px;
 }
 
+html[data-focus="1"] .activity-card,
+html[data-focus="1"] .shortcut-hint,
+html[data-focus="1"] .recent-strip,
+html[data-focus="1"] .space-tabs,
+html[data-focus="1"] .deep-search-row,
+html[data-focus="1"] #spaceStats {
+  display: none !important;
+}
+
+html[data-focus="1"] .container {
+  max-width: 900px;
+}
+
 .login-gate {
   background: var(--bg-gate);
 }

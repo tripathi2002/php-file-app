@@ -82,6 +82,7 @@ async function bootApp() {
   HelpModule.init();
   StorageInsightModule.init();
   ClipboardPathModule.init();
+  FocusModeModule.init();
   initMoreMenu();
   initFolderUpload();
   initZipFolder();
