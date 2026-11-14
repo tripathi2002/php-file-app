@@ -898,7 +898,8 @@ body.modal-open {
 }
 
 /* ===== Theme / controls / preview (v1.6) ===== */
-.theme-btn {
+.theme-btn,
+.density-btn {
   position: absolute;
   left: 0;
   border: 1px solid var(--border);
@@ -909,6 +910,40 @@ body.modal-open {
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
+}
+
+.density-btn {
+  left: 64px;
+}
+
+.selection-bar {
+  position: sticky;
+  top: 8px;
+  z-index: 20;
+}
+
+html[data-density="compact"] .file-row {
+  padding: 4px 0;
+}
+
+html[data-density="compact"] .file-thumb {
+  width: 36px;
+  height: 36px;
+}
+
+html[data-density="compact"] .file-sub,
+html[data-density="compact"] .shortcut-hint,
+html[data-density="compact"] .activity-card {
+  display: none;
+}
+
+html[data-density="compact"] .container {
+  padding-top: 8px;
+}
+
+html[data-density="compact"] .toolbar .btn {
+  padding: 6px 10px;
+  font-size: 12px;
 }
 
 .login-gate {

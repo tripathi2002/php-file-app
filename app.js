@@ -331,10 +331,40 @@ window.ThemeModule = {
 };
 
 
+/* ===== modules\density.js ===== */
+window.DensityModule = {
+  KEY: "fileAppDensity",
+
+  init() {
+    this.apply(localStorage.getItem(this.KEY) || "comfortable");
+    document.getElementById("densityBtn")?.addEventListener("click", () => this.toggle());
+  },
+
+  toggle() {
+    const next = this.current() === "compact" ? "comfortable" : "compact";
+    this.apply(next);
+    ToastModule.show(next === "compact" ? "Compact view" : "Comfortable view", "info");
+  },
+
+  current() {
+    return localStorage.getItem(this.KEY) || "comfortable";
+  },
+
+  apply(mode) {
+    localStorage.setItem(this.KEY, mode);
+    document.documentElement.setAttribute("data-density", mode);
+    const btn = document.getElementById("densityBtn");
+    if (btn) btn.textContent = mode === "compact" ? "Comfort" : "Compact";
+  },
+};
+
+
 /* ===== modules\preview.js ===== */
 window.PreviewModule = {
   el: null,
   body: null,
+  current: null,
+  index: -1,
 
   init() {
     if (document.getElementById("previewOverlay")) return;
@@ -349,6 +379,8 @@ window.PreviewModule = {
         <header class="preview-header">
           <strong id="previewTitle">Preview</strong>
           <div class="preview-actions">
+            <button type="button" id="previewPrev" class="btn ghost" aria-label="Previous">‹</button>
+            <button type="button" id="previewNext" class="btn ghost" aria-label="Next">›</button>
             <a id="previewOpen" class="btn view" target="_blank" rel="noopener noreferrer">Open</a>
             <button type="button" id="previewClose" class="btn cancel">Close</button>
           </div>
@@ -362,18 +394,64 @@ window.PreviewModule = {
       if (e.target === overlay) this.close();
     });
     document.getElementById("previewClose").addEventListener("click", () => this.close());
+    document.getElementById("previewPrev").addEventListener("click", () => this.nav(-1));
+    document.getElementById("previewNext").addEventListener("click", () => this.nav(1));
     document.getElementById("previewSheet").addEventListener("click", (e) => e.stopPropagation());
     document.addEventListener("keydown", (e) => {
-      if (e.key === "Escape" && this.el.classList.contains("show")) this.close();
+      if (!this.el?.classList.contains("show")) return;
+      if (e.key === "Escape") this.close();
+      if (e.key === "ArrowLeft") this.nav(-1);
+      if (e.key === "ArrowRight") this.nav(1);
     });
+
+    let touchX = 0;
+    this.body.addEventListener(
+      "touchstart",
+      (e) => {
+        touchX = e.touches[0].clientX;
+      },
+      { passive: true }
+    );
+    this.body.addEventListener(
+      "touchend",
+      (e) => {
+        const dx = e.changedTouches[0].clientX - touchX;
+        if (Math.abs(dx) > 60) this.nav(dx < 0 ? 1 : -1);
+      },
+      { passive: true }
+    );
+  },
+
+  fileList() {
+    return (FilesModule.files || []).slice();
   },
 
   open(file) {
     this.init();
+    const list = this.fileList();
+    this.index = list.findIndex((f) => f.name === file.name);
+    this.current = file;
+    this.render(file);
+  },
+
+  nav(delta) {
+    const list = this.fileList();
+    if (!list.length) return;
+    if (this.index < 0) this.index = 0;
+    this.index = (this.index + delta + list.length) % list.length;
+    this.current = list[this.index];
+    this.render(this.current);
+  },
+
+  render(file) {
     const title = document.getElementById("previewTitle");
     const openBtn = document.getElementById("previewOpen");
     const url = Api.absoluteUrl(file.viewUrl || file.downloadUrl);
-    title.textContent = file.name || "Preview";
+    const list = this.fileList();
+    title.textContent =
+      list.length && this.index >= 0
+        ? `${file.name || "Preview"} (${this.index + 1}/${list.length})`
+        : file.name || "Preview";
     openBtn.href = url;
     this.body.innerHTML = "";
 
@@ -464,6 +542,8 @@ window.PreviewModule = {
     if (!this.el) return;
     this.el.classList.remove("show");
     if (this.body) this.body.innerHTML = "";
+    this.current = null;
+    this.index = -1;
     document.body.classList.remove("modal-open");
   },
 };
@@ -997,6 +1077,74 @@ window.UploadModule = {
     this.handleFile(list[0]);
   },
 
+  /** Upload a directory selection (webkitdirectory FileList). */
+  async uploadFolderTree(fileList) {
+    const files = Array.from(fileList || []).filter((f) => f && f.name !== ".DS_Store");
+    if (!files.length) return;
+
+    const base = Api.currentFolder || "";
+    const folderSet = new Set();
+    files.forEach((f) => {
+      const rel = (f.webkitRelativePath || f.name).replace(/\\/g, "/");
+      const parts = rel.split("/");
+      parts.pop();
+      let acc = base;
+      parts.forEach((part) => {
+        if (!part || part === "." || part.includes(".")) return;
+        acc = acc ? `${acc}/${part}` : part;
+        folderSet.add(acc);
+      });
+    });
+
+    const folders = Array.from(folderSet).sort(
+      (a, b) => a.split("/").length - b.split("/").length || a.localeCompare(b)
+    );
+
+    ToastModule.show(`Preparing ${folders.length} folders…`, "info");
+    for (const full of folders) {
+      const parts = full.split("/");
+      const name = parts.pop();
+      const parent = parts.join("/");
+      try {
+        await Api.request("/mkdir.php", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ folder: parent, name }),
+        });
+      } catch (e) {
+        if (e.code !== 409) {
+          ToastModule.show(e.message || "Folder create failed", "error");
+          return;
+        }
+      }
+    }
+
+    // Queue files with target folder metadata
+    this.folderQueueMeta = files.map((f) => {
+      const rel = (f.webkitRelativePath || f.name).replace(/\\/g, "/");
+      const parts = rel.split("/");
+      const name = parts.pop();
+      const sub = parts.join("/");
+      const folder = [base, sub].filter(Boolean).join("/");
+      return { file: f, folder, name };
+    });
+
+    openUpload();
+    const first = this.folderQueueMeta.shift();
+    this.pendingTargetFolder = first.folder;
+    this.queue = this.folderQueueMeta.map((x) => {
+      // stash target on file object
+      x.file.__targetFolder = x.folder;
+      return x.file;
+    });
+    this.renderQueue();
+    this.handleFile(first.file);
+    // Override current folder only for upload destination
+    this._savedFolder = Api.currentFolder;
+    Api.currentFolder = first.folder;
+    ToastModule.show(`Uploading ${files.length} files from folder`, "info");
+  },
+
   renderQueue() {
     const el = document.getElementById("uploadQueue");
     if (!el) return;
@@ -1242,9 +1390,17 @@ window.UploadModule = {
       const next = this.queue.shift();
       this.renderQueue();
       this.reset(false);
+      if (next.__targetFolder !== undefined) {
+        Api.currentFolder = next.__targetFolder;
+      }
       this.handleFile(next);
       this.start();
       return;
+    }
+    if (this._savedFolder !== undefined) {
+      Api.currentFolder = this._savedFolder;
+      this._savedFolder = undefined;
+      FilesModule && FilesModule.loadFiles();
     }
     this.reset();
   },
@@ -1402,7 +1558,41 @@ window.FilesModule = {
     document.getElementById("batchMoveBtn")?.addEventListener("click", () => this.batchMove());
     document.getElementById("viewToggleBtn")?.addEventListener("click", () => this.toggleView());
     document.getElementById("newNoteBtn")?.addEventListener("click", () => this.createNote());
+    document.getElementById("emptyFolderBtn")?.addEventListener("click", () => this.emptyCurrentFolder());
     this.applyViewMode();
+  },
+
+  emptyCurrentFolder() {
+    if (Api.readOnly) {
+      ToastModule.show("Public space is read-only", "error");
+      return;
+    }
+    const label = Api.currentFolder || "(root)";
+    ModalModule.show({
+      title: "Empty folder",
+      message: `Delete ALL files and subfolders inside "${label}"? The folder itself stays.`,
+      confirmText: "Empty it",
+      danger: true,
+      onConfirm: async () => {
+        try {
+          const res = await Api.request("/empty-folder.php", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ folder: Api.currentFolder || "" }),
+          });
+          ToastModule.show(
+            `Removed ${res.deletedFiles || 0} files, ${res.deletedFolders || 0} folders`,
+            "success"
+          );
+          ActivityModule.log?.("Emptied folder", label);
+          this.clearSelection();
+          this.loadFiles();
+        } catch (error) {
+          if (error.authRequired) AuthGate.prompt();
+          ToastModule.show(error.message || "Empty failed", "error");
+        }
+      },
+    });
   },
 
   createNote() {
@@ -1530,6 +1720,8 @@ window.FilesModule = {
     const ro = !!Api.readOnly;
     document.getElementById("newFolderBtn")?.classList.toggle("hide", ro);
     document.getElementById("newNoteBtn")?.classList.toggle("hide", ro);
+    document.getElementById("emptyFolderBtn")?.classList.toggle("hide", ro);
+    document.getElementById("folderUploadBtn")?.classList.toggle("hide", ro);
     document.getElementById("fab")?.classList.toggle("readonly-hide", ro);
     document.getElementById("batchDeleteBtn")?.classList.toggle("hide", ro);
     document.getElementById("batchMoveBtn")?.classList.toggle("hide", ro);
@@ -2105,17 +2297,24 @@ window.FilesModule = {
       return null;
     }
 
-    const labels = folders.map((f) => (f.path === "" ? "(root)" : f.path));
+    const options = folders
+      .map((f) => {
+        const label = f.path === "" ? "(root)" : f.path;
+        const pad = "&nbsp;".repeat((f.depth || 0) * 2);
+        const selected = f.path === (Api.currentFolder || "") ? "" : "";
+        return `<option value="${String(f.path).replace(/"/g, "&quot;")}">${pad}${label}</option>`;
+      })
+      .join("");
+
     return new Promise((resolve) => {
       ModalModule.show({
         title: "Move to…",
-        message: "Type destination folder path (blank = root).\n\n" + labels.slice(0, 20).join("\n"),
-        input: true,
-        inputValue: "",
+        message: "Choose a destination folder",
+        html: `<select id="moveFolderSelect" class="modal-select">${options}</select>`,
         confirmText: "Move",
-        onConfirm: (val) => {
-          const v = (val || "").trim();
-          resolve(v === "(root)" ? "" : v);
+        onConfirm: () => {
+          const sel = document.getElementById("moveFolderSelect");
+          resolve(sel ? sel.value : "");
         },
         onCancel: () => resolve(null),
       });
@@ -2421,7 +2620,7 @@ window.ShortcutsModule = {
 
 
 /* ===== script.js ===== */
-const APP_UI_VERSION = "1.6.0";
+const APP_UI_VERSION = "1.7.0";
 const APP_API_VERSION = "v1";
 
 function detectServerBase() {
@@ -2483,6 +2682,7 @@ async function bootApp() {
   await resolveApiBase();
   bindUiEvents();
   ThemeModule.init();
+  DensityModule.init();
   ToastModule.init();
   ModalModule.init();
   PreviewModule.init();
@@ -2496,6 +2696,7 @@ async function bootApp() {
   RecentModule.init();
   OfflineModule.init();
   PasteUploadModule.init();
+  initFolderUpload();
   initPullToRefresh();
 
   const ok = await AuthGate.check();
@@ -2532,6 +2733,29 @@ function closeUpload() {
   if (!Api.readOnly) fab.classList.remove("hide");
   overlay.classList.remove("show");
   overlay.setAttribute("aria-hidden", "true");
+}
+
+function initFolderUpload() {
+  const btn = document.getElementById("folderUploadBtn");
+  const input = document.getElementById("folderInput");
+  if (!btn || !input) return;
+  btn.addEventListener("click", () => {
+    if (Api.readOnly) {
+      ToastModule.show("Public space is read-only", "error");
+      return;
+    }
+    if (!canUseCurrentSpace()) {
+      AuthGate.prompt();
+      return;
+    }
+    input.click();
+  });
+  input.addEventListener("change", async () => {
+    const files = Array.from(input.files || []);
+    input.value = "";
+    if (!files.length) return;
+    await UploadModule.uploadFolderTree(files);
+  });
 }
 
 function initPullToRefresh() {

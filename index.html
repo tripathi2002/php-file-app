@@ -11,7 +11,7 @@
       href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230d98d8'/%3E%3Cpath d='M16 8v12M10 14l6 6 6-6' stroke='white' stroke-width='2.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"
       type="image/svg+xml"
     />
-    <link rel="stylesheet" href="style.css?v=1.6.0" />
+    <link rel="stylesheet" href="style.css?v=1.7.0" />
   </head>
 
   <body>
@@ -78,6 +78,7 @@
       <main id="main" class="container">
         <header class="app-header">
           <h1 id="spaceTitle">Files</h1>
+          <button type="button" id="densityBtn" class="density-btn" title="Density">Compact</button>
           <button type="button" id="themeBtn" class="theme-btn" title="Theme">Dark</button>
           <button
             type="button"
@@ -104,9 +105,12 @@
         <div class="toolbar">
           <button type="button" id="newFolderBtn" class="btn folder-btn">New folder</button>
           <button type="button" id="newNoteBtn" class="btn folder-btn ghost">New note</button>
+          <button type="button" id="folderUploadBtn" class="btn folder-btn ghost">Upload folder</button>
+          <button type="button" id="emptyFolderBtn" class="btn folder-btn ghost">Empty</button>
           <button type="button" id="refreshBtn" class="btn folder-btn ghost">Refresh</button>
           <button type="button" id="viewToggleBtn" class="btn folder-btn ghost">Grid</button>
         </div>
+        <input type="file" id="folderInput" class="visually-hidden" webkitdirectory multiple />
 
         <div class="list-controls">
           <label class="search-wrap" for="fileSearch">
@@ -229,6 +233,6 @@
       </div>
     </div>
 
-    <script src="app.js?v=1.6.0"></script>
+    <script src="app.js?v=1.7.0"></script>
   </body>
 </html>

@@ -22,6 +22,74 @@ window.UploadModule = {
     this.handleFile(list[0]);
   },
 
+  /** Upload a directory selection (webkitdirectory FileList). */
+  async uploadFolderTree(fileList) {
+    const files = Array.from(fileList || []).filter((f) => f && f.name !== ".DS_Store");
+    if (!files.length) return;
+
+    const base = Api.currentFolder || "";
+    const folderSet = new Set();
+    files.forEach((f) => {
+      const rel = (f.webkitRelativePath || f.name).replace(/\\/g, "/");
+      const parts = rel.split("/");
+      parts.pop();
+      let acc = base;
+      parts.forEach((part) => {
+        if (!part || part === "." || part.includes(".")) return;
+        acc = acc ? `${acc}/${part}` : part;
+        folderSet.add(acc);
+      });
+    });
+
+    const folders = Array.from(folderSet).sort(
+      (a, b) => a.split("/").length - b.split("/").length || a.localeCompare(b)
+    );
+
+    ToastModule.show(`Preparing ${folders.length} folders…`, "info");
+    for (const full of folders) {
+      const parts = full.split("/");
+      const name = parts.pop();
+      const parent = parts.join("/");
+      try {
+        await Api.request("/mkdir.php", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ folder: parent, name }),
+        });
+      } catch (e) {
+        if (e.code !== 409) {
+          ToastModule.show(e.message || "Folder create failed", "error");
+          return;
+        }
+      }
+    }
+
+    // Queue files with target folder metadata
+    this.folderQueueMeta = files.map((f) => {
+      const rel = (f.webkitRelativePath || f.name).replace(/\\/g, "/");
+      const parts = rel.split("/");
+      const name = parts.pop();
+      const sub = parts.join("/");
+      const folder = [base, sub].filter(Boolean).join("/");
+      return { file: f, folder, name };
+    });
+
+    openUpload();
+    const first = this.folderQueueMeta.shift();
+    this.pendingTargetFolder = first.folder;
+    this.queue = this.folderQueueMeta.map((x) => {
+      // stash target on file object
+      x.file.__targetFolder = x.folder;
+      return x.file;
+    });
+    this.renderQueue();
+    this.handleFile(first.file);
+    // Override current folder only for upload destination
+    this._savedFolder = Api.currentFolder;
+    Api.currentFolder = first.folder;
+    ToastModule.show(`Uploading ${files.length} files from folder`, "info");
+  },
+
   renderQueue() {
     const el = document.getElementById("uploadQueue");
     if (!el) return;
@@ -267,9 +335,17 @@ window.UploadModule = {
       const next = this.queue.shift();
       this.renderQueue();
       this.reset(false);
+      if (next.__targetFolder !== undefined) {
+        Api.currentFolder = next.__targetFolder;
+      }
       this.handleFile(next);
       this.start();
       return;
+    }
+    if (this._savedFolder !== undefined) {
+      Api.currentFolder = this._savedFolder;
+      this._savedFolder = undefined;
+      FilesModule && FilesModule.loadFiles();
     }
     this.reset();
   },

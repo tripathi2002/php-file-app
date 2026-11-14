@@ -1,4 +1,4 @@
-const APP_UI_VERSION = "1.6.0";
+const APP_UI_VERSION = "1.7.0";
 const APP_API_VERSION = "v1";
 
 function detectServerBase() {
@@ -60,6 +60,7 @@ async function bootApp() {
   await resolveApiBase();
   bindUiEvents();
   ThemeModule.init();
+  DensityModule.init();
   ToastModule.init();
   ModalModule.init();
   PreviewModule.init();
@@ -73,6 +74,7 @@ async function bootApp() {
   RecentModule.init();
   OfflineModule.init();
   PasteUploadModule.init();
+  initFolderUpload();
   initPullToRefresh();
 
   const ok = await AuthGate.check();
@@ -109,6 +111,29 @@ function closeUpload() {
   if (!Api.readOnly) fab.classList.remove("hide");
   overlay.classList.remove("show");
   overlay.setAttribute("aria-hidden", "true");
+}
+
+function initFolderUpload() {
+  const btn = document.getElementById("folderUploadBtn");
+  const input = document.getElementById("folderInput");
+  if (!btn || !input) return;
+  btn.addEventListener("click", () => {
+    if (Api.readOnly) {
+      ToastModule.show("Public space is read-only", "error");
+      return;
+    }
+    if (!canUseCurrentSpace()) {
+      AuthGate.prompt();
+      return;
+    }
+    input.click();
+  });
+  input.addEventListener("change", async () => {
+    const files = Array.from(input.files || []);
+    input.value = "";
+    if (!files.length) return;
+    await UploadModule.uploadFolderTree(files);
+  });
 }
 
 function initPullToRefresh() {

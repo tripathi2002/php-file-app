@@ -54,7 +54,41 @@ window.FilesModule = {
     document.getElementById("batchMoveBtn")?.addEventListener("click", () => this.batchMove());
     document.getElementById("viewToggleBtn")?.addEventListener("click", () => this.toggleView());
     document.getElementById("newNoteBtn")?.addEventListener("click", () => this.createNote());
+    document.getElementById("emptyFolderBtn")?.addEventListener("click", () => this.emptyCurrentFolder());
     this.applyViewMode();
+  },
+
+  emptyCurrentFolder() {
+    if (Api.readOnly) {
+      ToastModule.show("Public space is read-only", "error");
+      return;
+    }
+    const label = Api.currentFolder || "(root)";
+    ModalModule.show({
+      title: "Empty folder",
+      message: `Delete ALL files and subfolders inside "${label}"? The folder itself stays.`,
+      confirmText: "Empty it",
+      danger: true,
+      onConfirm: async () => {
+        try {
+          const res = await Api.request("/empty-folder.php", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ folder: Api.currentFolder || "" }),
+          });
+          ToastModule.show(
+            `Removed ${res.deletedFiles || 0} files, ${res.deletedFolders || 0} folders`,
+            "success"
+          );
+          ActivityModule.log?.("Emptied folder", label);
+          this.clearSelection();
+          this.loadFiles();
+        } catch (error) {
+          if (error.authRequired) AuthGate.prompt();
+          ToastModule.show(error.message || "Empty failed", "error");
+        }
+      },
+    });
   },
 
   createNote() {
@@ -182,6 +216,8 @@ window.FilesModule = {
     const ro = !!Api.readOnly;
     document.getElementById("newFolderBtn")?.classList.toggle("hide", ro);
     document.getElementById("newNoteBtn")?.classList.toggle("hide", ro);
+    document.getElementById("emptyFolderBtn")?.classList.toggle("hide", ro);
+    document.getElementById("folderUploadBtn")?.classList.toggle("hide", ro);
     document.getElementById("fab")?.classList.toggle("readonly-hide", ro);
     document.getElementById("batchDeleteBtn")?.classList.toggle("hide", ro);
     document.getElementById("batchMoveBtn")?.classList.toggle("hide", ro);
@@ -757,17 +793,24 @@ window.FilesModule = {
       return null;
     }
 
-    const labels = folders.map((f) => (f.path === "" ? "(root)" : f.path));
+    const options = folders
+      .map((f) => {
+        const label = f.path === "" ? "(root)" : f.path;
+        const pad = "&nbsp;".repeat((f.depth || 0) * 2);
+        const selected = f.path === (Api.currentFolder || "") ? "" : "";
+        return `<option value="${String(f.path).replace(/"/g, "&quot;")}">${pad}${label}</option>`;
+      })
+      .join("");
+
     return new Promise((resolve) => {
       ModalModule.show({
         title: "Move to…",
-        message: "Type destination folder path (blank = root).\n\n" + labels.slice(0, 20).join("\n"),
-        input: true,
-        inputValue: "",
+        message: "Choose a destination folder",
+        html: `<select id="moveFolderSelect" class="modal-select">${options}</select>`,
         confirmText: "Move",
-        onConfirm: (val) => {
-          const v = (val || "").trim();
-          resolve(v === "(root)" ? "" : v);
+        onConfirm: () => {
+          const sel = document.getElementById("moveFolderSelect");
+          resolve(sel ? sel.value : "");
         },
         onCancel: () => resolve(null),
       });

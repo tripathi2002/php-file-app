@@ -1,6 +1,8 @@
 window.PreviewModule = {
   el: null,
   body: null,
+  current: null,
+  index: -1,
 
   init() {
     if (document.getElementById("previewOverlay")) return;
@@ -15,6 +17,8 @@ window.PreviewModule = {
         <header class="preview-header">
           <strong id="previewTitle">Preview</strong>
           <div class="preview-actions">
+            <button type="button" id="previewPrev" class="btn ghost" aria-label="Previous">‹</button>
+            <button type="button" id="previewNext" class="btn ghost" aria-label="Next">›</button>
             <a id="previewOpen" class="btn view" target="_blank" rel="noopener noreferrer">Open</a>
             <button type="button" id="previewClose" class="btn cancel">Close</button>
           </div>
@@ -28,18 +32,64 @@ window.PreviewModule = {
       if (e.target === overlay) this.close();
     });
     document.getElementById("previewClose").addEventListener("click", () => this.close());
+    document.getElementById("previewPrev").addEventListener("click", () => this.nav(-1));
+    document.getElementById("previewNext").addEventListener("click", () => this.nav(1));
     document.getElementById("previewSheet").addEventListener("click", (e) => e.stopPropagation());
     document.addEventListener("keydown", (e) => {
-      if (e.key === "Escape" && this.el.classList.contains("show")) this.close();
+      if (!this.el?.classList.contains("show")) return;
+      if (e.key === "Escape") this.close();
+      if (e.key === "ArrowLeft") this.nav(-1);
+      if (e.key === "ArrowRight") this.nav(1);
     });
+
+    let touchX = 0;
+    this.body.addEventListener(
+      "touchstart",
+      (e) => {
+        touchX = e.touches[0].clientX;
+      },
+      { passive: true }
+    );
+    this.body.addEventListener(
+      "touchend",
+      (e) => {
+        const dx = e.changedTouches[0].clientX - touchX;
+        if (Math.abs(dx) > 60) this.nav(dx < 0 ? 1 : -1);
+      },
+      { passive: true }
+    );
+  },
+
+  fileList() {
+    return (FilesModule.files || []).slice();
   },
 
   open(file) {
     this.init();
+    const list = this.fileList();
+    this.index = list.findIndex((f) => f.name === file.name);
+    this.current = file;
+    this.render(file);
+  },
+
+  nav(delta) {
+    const list = this.fileList();
+    if (!list.length) return;
+    if (this.index < 0) this.index = 0;
+    this.index = (this.index + delta + list.length) % list.length;
+    this.current = list[this.index];
+    this.render(this.current);
+  },
+
+  render(file) {
     const title = document.getElementById("previewTitle");
     const openBtn = document.getElementById("previewOpen");
     const url = Api.absoluteUrl(file.viewUrl || file.downloadUrl);
-    title.textContent = file.name || "Preview";
+    const list = this.fileList();
+    title.textContent =
+      list.length && this.index >= 0
+        ? `${file.name || "Preview"} (${this.index + 1}/${list.length})`
+        : file.name || "Preview";
     openBtn.href = url;
     this.body.innerHTML = "";
 
@@ -130,6 +180,8 @@ window.PreviewModule = {
     if (!this.el) return;
     this.el.classList.remove("show");
     if (this.body) this.body.innerHTML = "";
+    this.current = null;
+    this.index = -1;
     document.body.classList.remove("modal-open");
   },
 };
