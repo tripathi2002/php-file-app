@@ -281,6 +281,10 @@ window.AuthGate = {
   },
 
   switchToPublic() {
+    if (UploadModule?.isUploading) {
+      ToastModule.show("Finish or cancel the upload first", "error");
+      return;
+    }
     Api.setSpace("public");
     Api.currentFolder = localStorage.getItem("fileAppLastFolder:public") || "";
     this.hide();
@@ -289,6 +293,10 @@ window.AuthGate = {
   },
 
   switchToPersonal() {
+    if (UploadModule?.isUploading) {
+      ToastModule.show("Finish or cancel the upload first", "error");
+      return;
+    }
     if (Api.getAccessKey()) {
       Api.setSpace("personal");
       Api.currentFolder = localStorage.getItem("fileAppLastFolder:personal") || "";

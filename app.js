@@ -1312,6 +1312,19 @@ window.DuplicatesModule = {
 };
 
 
+/* ===== modules\confirm-nav.js ===== */
+window.ConfirmNavModule = {
+  init() {
+    window.addEventListener("beforeunload", (e) => {
+      if (UploadModule?.isUploading) {
+        e.preventDefault();
+        e.returnValue = "";
+      }
+    });
+  },
+};
+
+
 /* ===== modules\auth-gate.js ===== */
 window.AuthGate = {
   el: null,
@@ -1596,6 +1609,10 @@ window.AuthGate = {
   },
 
   switchToPublic() {
+    if (UploadModule?.isUploading) {
+      ToastModule.show("Finish or cancel the upload first", "error");
+      return;
+    }
     Api.setSpace("public");
     Api.currentFolder = localStorage.getItem("fileAppLastFolder:public") || "";
     this.hide();
@@ -1604,6 +1621,10 @@ window.AuthGate = {
   },
 
   switchToPersonal() {
+    if (UploadModule?.isUploading) {
+      ToastModule.show("Finish or cancel the upload first", "error");
+      return;
+    }
     if (Api.getAccessKey()) {
       Api.setSpace("personal");
       Api.currentFolder = localStorage.getItem("fileAppLastFolder:personal") || "";
@@ -3737,6 +3758,7 @@ async function bootApp() {
   FocusModeModule.init();
   ScrollTopModule.init();
   DuplicatesModule.init();
+  ConfirmNavModule.init();
   initMoreMenu();
   initFolderUpload();
   initZipFolder();
