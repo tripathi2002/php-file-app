@@ -917,8 +917,10 @@ window.FilesModule = {
     }
   },
 
-  async copyLink(file) {
-    const url = Api.absoluteUrl(file.downloadUrl || file.viewUrl);
+  async copyLink(file, preferView = false) {
+    const url = Api.absoluteUrl(
+      preferView ? file.viewUrl || file.downloadUrl : file.downloadUrl || file.viewUrl
+    );
     if (navigator.share) {
       try {
         await navigator.share({ title: file.name, url });
@@ -930,10 +932,10 @@ window.FilesModule = {
     }
     try {
       await navigator.clipboard.writeText(url);
-      ToastModule.show("Link copied", "success");
+      ToastModule.show("Signed link copied (expires ~1h)", "success");
       ActivityModule.log?.("Copied link", file.name);
     } catch (e) {
-      prompt("Copy this link:", url);
+      prompt("Copy this link (expires ~1h):", url);
     }
   },
 
