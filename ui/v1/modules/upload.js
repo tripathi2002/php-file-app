@@ -374,6 +374,7 @@ window.UploadModule = {
 
     status.innerText = "Upload Complete";
     ToastModule.show("Upload complete", "success");
+    NotifyModule.ping?.("Upload complete", file.name);
     ActivityModule.log?.("Uploaded", file.name);
     this.isUploading = false;
     FilesModule && FilesModule.loadFiles();

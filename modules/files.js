@@ -644,6 +644,11 @@ window.FilesModule = {
       { label: "Preview", className: "view", onClick: () => PreviewModule.open(file) },
       { label: "Details", className: "view", onClick: () => this.showDetails(file, false) },
       { label: "Copy link", className: "copy", onClick: () => this.copyLink(file) },
+      {
+        label: "Copy path",
+        className: "copy",
+        onClick: () => this.copyPath(file.name),
+      },
       { label: "Duplicate", className: "copy", onClick: () => this.duplicateFile(name) },
       { label: "Move…", className: "move", onClick: () => this.moveItem(name, false) },
       { label: "Rename", className: "rename", onClick: () => this.renameItem(name, false) },
@@ -702,6 +707,16 @@ window.FilesModule = {
       if (menu.id !== menuId) menu.classList.remove("show");
     });
     document.getElementById(menuId)?.classList.toggle("show");
+  },
+
+  async copyPath(name) {
+    const path = [Api.currentFolder, name].filter(Boolean).join("/");
+    try {
+      await navigator.clipboard.writeText(path);
+      ToastModule.show("Path copied", "success");
+    } catch (e) {
+      prompt("Path:", path);
+    }
   },
 
   async copyLink(file) {

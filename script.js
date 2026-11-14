@@ -61,6 +61,8 @@ async function bootApp() {
   bindUiEvents();
   ThemeModule.init();
   DensityModule.init();
+  NotifyModule.init();
+  IdleModule.init();
   ToastModule.init();
   ModalModule.init();
   PreviewModule.init();

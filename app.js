@@ -383,6 +383,83 @@ window.ConflictModule = {
 };
 
 
+/* ===== modules\notify.js ===== */
+window.NotifyModule = {
+  enabled: localStorage.getItem("fileAppNotify") === "1",
+
+  init() {
+    const btn = document.getElementById("notifyBtn");
+    if (btn) {
+      btn.addEventListener("click", () => this.toggle());
+      this.syncBtn();
+    }
+  },
+
+  syncBtn() {
+    const btn = document.getElementById("notifyBtn");
+    if (btn) btn.textContent = this.enabled ? "Alerts on" : "Alerts";
+  },
+
+  async toggle() {
+    if (!("Notification" in window)) {
+      ToastModule.show("Notifications not supported", "error");
+      return;
+    }
+    if (!this.enabled) {
+      const perm = await Notification.requestPermission();
+      if (perm !== "granted") {
+        ToastModule.show("Permission denied", "error");
+        return;
+      }
+      this.enabled = true;
+      localStorage.setItem("fileAppNotify", "1");
+      ToastModule.show("Upload alerts on", "success");
+    } else {
+      this.enabled = false;
+      localStorage.setItem("fileAppNotify", "0");
+      ToastModule.show("Upload alerts off", "info");
+    }
+    this.syncBtn();
+  },
+
+  ping(title, body) {
+    if (!this.enabled || !("Notification" in window) || Notification.permission !== "granted") {
+      return;
+    }
+    if (document.visibilityState === "visible") return;
+    try {
+      new Notification(title, { body, silent: true });
+    } catch (e) {}
+  },
+};
+
+
+/* ===== modules\idle.js ===== */
+window.IdleModule = {
+  timer: null,
+  minutes: 30,
+
+  init() {
+    ["click", "keydown", "touchstart", "mousemove"].forEach((evt) => {
+      document.addEventListener(evt, () => this.bump(), { passive: true });
+    });
+    this.bump();
+  },
+
+  bump() {
+    clearTimeout(this.timer);
+    if (Api.space !== "personal" || !Api.getAccessKey()) return;
+    this.timer = setTimeout(() => this.lock(), this.minutes * 60 * 1000);
+  },
+
+  lock() {
+    if (Api.space !== "personal" || !Api.getAccessKey()) return;
+    ToastModule.show("Locked after idle — enter PIN again", "info");
+    AuthGate.logout?.();
+  },
+};
+
+
 /* ===== modules\preview.js ===== */
 window.PreviewModule = {
   el: null,
@@ -1088,13 +1165,28 @@ window.AuthGate = {
       onCancel: () => {
         ModalModule.show({
           title: "Account",
-          message: "Change your PIN?",
+          message: "Change PIN or revoke other device sessions?",
           confirmText: "Change PIN",
-          cancelText: "Close",
+          cancelText: "Revoke others",
           onConfirm: () => this.changePin(),
+          onCancel: () => this.revokeOtherSessions(),
         });
       },
     });
+  },
+
+  async revokeOtherSessions() {
+    try {
+      const res = await Api.request("/sessions.php", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "revokeOthers" }),
+      });
+      ToastModule.show(`Revoked ${res.removed || 0} other session(s)`, "success");
+      ActivityModule.log?.("Revoked other sessions");
+    } catch (e) {
+      ToastModule.show(e.message || "Could not revoke sessions", "error");
+    }
   },
 
   changePin() {
@@ -1600,6 +1692,7 @@ window.UploadModule = {
 
     status.innerText = "Upload Complete";
     ToastModule.show("Upload complete", "success");
+    NotifyModule.ping?.("Upload complete", file.name);
     ActivityModule.log?.("Uploaded", file.name);
     this.isUploading = false;
     FilesModule && FilesModule.loadFiles();
@@ -2365,6 +2458,11 @@ window.FilesModule = {
       { label: "Preview", className: "view", onClick: () => PreviewModule.open(file) },
       { label: "Details", className: "view", onClick: () => this.showDetails(file, false) },
       { label: "Copy link", className: "copy", onClick: () => this.copyLink(file) },
+      {
+        label: "Copy path",
+        className: "copy",
+        onClick: () => this.copyPath(file.name),
+      },
       { label: "Duplicate", className: "copy", onClick: () => this.duplicateFile(name) },
       { label: "Move…", className: "move", onClick: () => this.moveItem(name, false) },
       { label: "Rename", className: "rename", onClick: () => this.renameItem(name, false) },
@@ -2423,6 +2521,16 @@ window.FilesModule = {
       if (menu.id !== menuId) menu.classList.remove("show");
     });
     document.getElementById(menuId)?.classList.toggle("show");
+  },
+
+  async copyPath(name) {
+    const path = [Api.currentFolder, name].filter(Boolean).join("/");
+    try {
+      await navigator.clipboard.writeText(path);
+      ToastModule.show("Path copied", "success");
+    } catch (e) {
+      prompt("Path:", path);
+    }
   },
 
   async copyLink(file) {
@@ -2929,6 +3037,8 @@ async function bootApp() {
   bindUiEvents();
   ThemeModule.init();
   DensityModule.init();
+  NotifyModule.init();
+  IdleModule.init();
   ToastModule.init();
   ModalModule.init();
   PreviewModule.init();

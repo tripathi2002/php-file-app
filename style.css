@@ -899,7 +899,8 @@ body.modal-open {
 
 /* ===== Theme / controls / preview (v1.6) ===== */
 .theme-btn,
-.density-btn {
+.density-btn,
+.notify-btn {
   position: absolute;
   left: 0;
   border: 1px solid var(--border);
@@ -914,6 +915,16 @@ body.modal-open {
 
 .density-btn {
   left: 64px;
+}
+
+.notify-btn {
+  left: 140px;
+}
+
+@media (max-width: 520px) {
+  .notify-btn {
+    display: none;
+  }
 }
 
 .selection-bar {

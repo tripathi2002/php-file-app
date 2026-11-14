@@ -206,13 +206,28 @@ window.AuthGate = {
       onCancel: () => {
         ModalModule.show({
           title: "Account",
-          message: "Change your PIN?",
+          message: "Change PIN or revoke other device sessions?",
           confirmText: "Change PIN",
-          cancelText: "Close",
+          cancelText: "Revoke others",
           onConfirm: () => this.changePin(),
+          onCancel: () => this.revokeOtherSessions(),
         });
       },
     });
+  },
+
+  async revokeOtherSessions() {
+    try {
+      const res = await Api.request("/sessions.php", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "revokeOthers" }),
+      });
+      ToastModule.show(`Revoked ${res.removed || 0} other session(s)`, "success");
+      ActivityModule.log?.("Revoked other sessions");
+    } catch (e) {
+      ToastModule.show(e.message || "Could not revoke sessions", "error");
+    }
   },
 
   changePin() {
