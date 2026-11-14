@@ -2921,6 +2921,15 @@ window.FilesModule = {
     }
   },
 
+  async showFolderSize(path) {
+    try {
+      const data = await Api.request(`/folder-size.php?folder=${encodeURIComponent(path || "")}`);
+      ToastModule.show(`${path || "root"}: ${data.human}`, "info");
+    } catch (e) {
+      ToastModule.show(e.message || "Could not measure folder", "error");
+    }
+  },
+
   async showDetails(file, isFolder = false) {
     let hashLine = "";
     let dimLine = "";
@@ -3501,6 +3510,11 @@ window.FilesModule = {
     const menuId = `folder-menu-${index}`;
     const menuContainer = this.buildMenu(menuId, [
       { label: "Details", className: "view", onClick: () => this.showDetails(folder, true) },
+      {
+        label: "Folder size",
+        className: "view",
+        onClick: () => this.showFolderSize(folder.path || folder.name),
+      },
       { label: "Rename", className: "rename", onClick: () => this.renameItem(folder.name, true) },
       { label: "Move…", className: "move", onClick: () => this.moveItem(folder.name, true) },
       { label: "Delete", className: "delete", onClick: () => this.deleteItem(folder.name, true) },
