@@ -810,6 +810,37 @@ window.RecentModule = {
 
   init() {
     this.render();
+    document.getElementById("serverRecentBtn")?.addEventListener("click", () => this.showServerRecent());
+  },
+
+  async showServerRecent() {
+    try {
+      const data = await Api.request("/recent-server.php?limit=15");
+      const items = data.items || [];
+      if (!items.length) {
+        ToastModule.show("No recent files on server", "info");
+        return;
+      }
+      const lines = items
+        .map((i) => `• ${i.name}${i.folder ? " @" + i.folder : ""}`)
+        .join("\n");
+      ModalModule.show({
+        title: "Newest on server",
+        message: lines,
+        confirmText: "Open newest",
+        cancelText: "Close",
+        onConfirm: () => {
+          const top = items[0];
+          FilesModule.openFolder(top.folder || "");
+          setTimeout(() => {
+            const match = (FilesModule.files || []).find((f) => f.name === top.name);
+            if (match) PreviewModule.open(match);
+          }, 400);
+        },
+      });
+    } catch (e) {
+      ToastModule.show(e.message || "Could not load recent", "error");
+    }
   },
 };
 
@@ -2775,7 +2806,6 @@ window.FilesModule = {
     check.type = "checkbox";
     check.className = "row-check";
     check.checked = this.selected.has(`d:${folder.name}`);
-    check.addEventListener("click", (e) => e.stopPropagation());
     check.addEventListener("click", (e) => e.stopPropagation());
     check.addEventListener("change", (e) => {
       this.toggleSelect(`d:${folder.name}`, e);

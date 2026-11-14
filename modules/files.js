@@ -674,7 +674,6 @@ window.FilesModule = {
     check.className = "row-check";
     check.checked = this.selected.has(`d:${folder.name}`);
     check.addEventListener("click", (e) => e.stopPropagation());
-    check.addEventListener("click", (e) => e.stopPropagation());
     check.addEventListener("change", (e) => {
       this.toggleSelect(`d:${folder.name}`, e);
       li.classList.toggle("selected", this.selected.has(`d:${folder.name}`));
