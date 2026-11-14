@@ -2379,6 +2379,7 @@ window.FilesModule = {
 
   async showDetails(file, isFolder = false) {
     let hashLine = "";
+    let dimLine = "";
     if (!isFolder && (file.size || 0) <= 100 * 1024 * 1024) {
       try {
         const data = await Api.request(
@@ -2388,6 +2389,18 @@ window.FilesModule = {
       } catch (e) {
         hashLine = `\nSHA-256: unavailable`;
       }
+    }
+    if (
+      !isFolder &&
+      ((file.mime || "").startsWith("image/") ||
+        ["jpg", "jpeg", "png", "gif", "webp"].includes((file.ext || "").toLowerCase()))
+    ) {
+      dimLine = await new Promise((resolve) => {
+        const img = new Image();
+        img.onload = () => resolve(`\nDimensions: ${img.naturalWidth}×${img.naturalHeight}`);
+        img.onerror = () => resolve("");
+        img.src = Api.absoluteUrl(file.viewUrl || file.thumbUrl || file.downloadUrl);
+      });
     }
     const lines = isFolder
       ? [`Name: ${file.name}`, `Type: Folder`, `Path: ${file.path || file.name}`]
@@ -2400,7 +2413,7 @@ window.FilesModule = {
         ];
     ModalModule.show({
       title: "Details",
-      message: lines.join("\n") + hashLine,
+      message: lines.join("\n") + dimLine + hashLine,
       confirmText: "Close",
       cancelText: "OK",
       onConfirm: () => {},
@@ -2898,6 +2911,12 @@ window.FilesModule = {
     const title = document.createElement("strong");
     title.className = "file-name";
     title.textContent = folder.name;
+    title.title = "Double-click to rename";
+    title.addEventListener("dblclick", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      this.renameItem(folder.name, true);
+    });
     const sub = document.createElement("div");
     sub.className = "file-sub";
     sub.textContent = "Folder";
@@ -2972,6 +2991,12 @@ window.FilesModule = {
     const title = document.createElement("strong");
     title.className = "file-name";
     title.textContent = name;
+    title.title = "Double-click to rename";
+    title.addEventListener("dblclick", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      this.renameItem(name, false);
+    });
     const sub = document.createElement("div");
     sub.className = "file-sub";
     sub.textContent = `${this.formatSize(file.size || 0)} · ${this.formatDate(file.mtime || 0)}`;
