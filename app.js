@@ -1805,14 +1805,23 @@ window.UploadModule = {
     name.textContent = file.name;
     const size = document.createElement("p");
     size.style.fontSize = "12px";
-    size.textContent = `${(file.size / (1024 * 1024)).toFixed(2)} MB`;
+    const mb = file.size / (1024 * 1024);
+    const chunks = Math.ceil(file.size / this.chunkSize) || 1;
+    size.textContent = `${mb.toFixed(2)} MB · ${chunks} chunk${chunks === 1 ? "" : "s"}`;
+    if (this.queue.length) {
+      const q = document.createElement("p");
+      q.style.fontSize = "12px";
+      q.textContent = `+ ${this.queue.length} more in queue`;
+      content.append(selected, name, size, q);
+    } else {
+      content.append(selected, name, size);
+    }
     const changeBtn = document.createElement("button");
     changeBtn.type = "button";
     changeBtn.className = "btn";
     changeBtn.textContent = "Change File";
     changeBtn.addEventListener("click", () => this.clearSelection());
-
-    content.append(selected, name, size, document.createElement("br"), changeBtn);
+    content.append(document.createElement("br"), changeBtn);
     document.getElementById("status").innerText = "Ready to upload";
     this.syncControls();
   },
