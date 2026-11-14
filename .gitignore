@@ -39,6 +39,12 @@ storage/chunks/*
 !storage/chunks/.gitkeep
 !storage/chunks/.htaccess
 
+storage/users/*
+!storage/users/.gitkeep
+
+storage/sessions/*
+!storage/sessions/.gitkeep
+
 # -----------------------------
 # Runtime (rate limit, throttle, auth tokens)
 # -----------------------------

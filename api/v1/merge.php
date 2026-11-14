@@ -1,5 +1,4 @@
 <?php
-// v1 merge contract — keep required fields and core success/error shapes stable.
 $root = dirname(__DIR__, 2);
 require $root . '/config.php';
 require $root . '/rate-limit.php';
@@ -14,6 +13,7 @@ $data = json_decode(file_get_contents('php://input'), true) ?? [];
 $fileName = app_sanitize_filename($data['fileName'] ?? null);
 $totalChunks = app_sanitize_chunk_index($data['totalChunks'] ?? null);
 $uploadId = app_sanitize_upload_id($data['uploadId'] ?? null);
+$folder = app_sanitize_folder($data['folder'] ?? '');
 $overwrite = !empty($data['overwrite']);
 
 if ($fileName === null || $totalChunks === null || $totalChunks < 1) {
@@ -28,12 +28,22 @@ if (!app_extension_allowed($fileName)) {
 }
 
 $fileKey = app_chunk_key($uploadId, $fileName);
-$chunkPath = CHUNK_DIR . $fileKey;
-$finalPath = UPLOAD_DIR . $fileName;
+$chunkPath = app_chunk_dir() . $fileKey;
 
 if (!is_dir($chunkPath)) {
     app_json(['error' => 'Upload session not found'], 404);
 }
+
+$metaFile = $chunkPath . '/meta.json';
+if (is_file($metaFile)) {
+    $meta = json_decode((string) file_get_contents($metaFile), true);
+    if (is_array($meta) && isset($meta['folder'])) {
+        $folder = app_sanitize_folder($meta['folder']);
+    }
+}
+
+app_ensure_dir(app_folder_path($folder), 0755);
+$finalPath = app_folder_path($folder) . $fileName;
 
 $mergedSize = 0;
 for ($i = 0; $i < $totalChunks; $i++) {
@@ -58,7 +68,7 @@ if (file_exists($finalPath) && !$overwrite) {
 }
 
 $quota = app_storage_quota_bytes();
-$used = app_dir_size(UPLOAD_DIR);
+$used = app_dir_size(app_upload_dir());
 $existing = (file_exists($finalPath) && $overwrite) ? (int) filesize($finalPath) : 0;
 if ($used - $existing + $mergedSize > $quota) {
     app_json([
@@ -92,9 +102,11 @@ fclose($out);
 foreach (glob($chunkPath . '/chunk_*') ?: [] as $chunk) {
     @unlink($chunk);
 }
+@unlink($metaFile);
 @rmdir($chunkPath);
 
 app_json([
     'message' => 'File merged successfully',
     'file' => $fileName,
+    'folder' => $folder,
 ]);

@@ -144,6 +144,7 @@ window.UploadModule = {
       formData.append("fileName", file.name);
       formData.append("uploadId", this.uploadId);
       formData.append("fileSize", String(file.size));
+      formData.append("folder", Api.currentFolder || "");
 
       try {
         const data = await this.uploadChunk(formData);
@@ -187,6 +188,7 @@ window.UploadModule = {
           fileName: file.name,
           totalChunks: this.totalChunks,
           uploadId: this.uploadId,
+          folder: Api.currentFolder || "",
         }),
       });
     } catch (error) {
@@ -201,6 +203,7 @@ window.UploadModule = {
                 fileName: file.name,
                 totalChunks: this.totalChunks,
                 uploadId: this.uploadId,
+                folder: Api.currentFolder || "",
                 overwrite: true,
               }),
             });

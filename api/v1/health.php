@@ -12,15 +12,16 @@ if (!in_array($_SERVER['REQUEST_METHOD'] ?? 'GET', ['GET', 'HEAD'], true)) {
 }
 
 $checks = [
-    'uploadsWritable' => is_dir(UPLOAD_DIR) && is_writable(UPLOAD_DIR),
-    'chunksWritable'  => is_dir(CHUNK_DIR) && is_writable(CHUNK_DIR),
+    'storageWritable' => is_dir(STORAGE_ROOT) && is_writable(STORAGE_ROOT),
+    'usersWritable' => is_dir(app_users_dir()) && is_writable(app_users_dir()),
+    'sessionsWritable' => is_dir(app_sessions_dir()) && is_writable(app_sessions_dir()),
 ];
 $ok = !in_array(false, $checks, true);
 
 http_response_code($ok ? 200 : 503);
 echo json_encode([
     'status' => $ok ? 'ok' : 'degraded',
-    'api'    => APP_API_VERSION,
+    'api' => APP_API_VERSION,
     'checks' => $checks,
-    'time'   => gmdate('c'),
+    'time' => gmdate('c'),
 ]);

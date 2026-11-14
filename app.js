@@ -4,22 +4,37 @@
 window.Api = {
   limits: null,
   allowedExtensions: null,
+  currentFolder: "",
+  mobileMasked: "",
 
   getAccessKey() {
-    return localStorage.getItem("fileAppAccessKey") || "";
+    return (
+      localStorage.getItem("fileAppSession") ||
+      localStorage.getItem("fileAppAccessKey") ||
+      ""
+    );
   },
 
   setAccessKey(key) {
     const value = (key || "").trim();
-    if (value) localStorage.setItem("fileAppAccessKey", value);
-    else localStorage.removeItem("fileAppAccessKey");
+    if (value) {
+      localStorage.setItem("fileAppSession", value);
+    } else {
+      localStorage.removeItem("fileAppSession");
+      localStorage.removeItem("fileAppAccessKey");
+    }
+  },
+
+  clearSession() {
+    this.setAccessKey("");
+    this.mobileMasked = "";
+    this.currentFolder = "";
   },
 
   authHeaders(extra = {}) {
     const headers = { ...extra };
     const key = this.getAccessKey();
     if (key) {
-      // Send both — LiteSpeed/Hostinger often strips Authorization
       headers.Authorization = `Bearer ${key}`;
       headers["X-Access-Key"] = key;
     }
@@ -46,11 +61,10 @@ window.Api = {
       data = { error: text || "Invalid server response" };
     }
 
-    if (res.status === 401 || res.status === 503 || data?.authRequired) {
+    if (res.status === 401 || data?.authRequired) {
       const err = new Error(data?.error || "Unauthorized");
       err.code = res.status;
       err.authRequired = true;
-      err.setupRequired = !!data?.setupRequired;
       throw err;
     }
 
@@ -228,38 +242,148 @@ window.ModalModule = {
 
 /* ===== modules\auth-gate.js ===== */
 window.AuthGate = {
-  prompted: false,
+  el: null,
 
-  prompt() {
-    if (this.prompted) return;
-    this.prompted = true;
+  init() {
+    this.el = document.getElementById("loginGate");
+    if (!this.el) return;
 
-    ModalModule.show({
-      title: "Access Key",
-      message:
-        "This app requires an access key. Generate one on the server with: php generate-key.php",
-      input: true,
-      inputValue: Api.getAccessKey(),
-      confirmText: "Unlock",
-      cancelText: "Later",
-      onConfirm: (value) => {
-        this.prompted = false;
-        Api.setAccessKey(value);
-        if (value) {
-          ToastModule.show("Unlocked", "success");
-          FilesModule.loadFiles();
-          HealthBanner.check();
-        }
-      },
-      onCancel: () => {
-        this.prompted = false;
-      },
+    const form = document.getElementById("loginForm");
+    const mobileInput = document.getElementById("loginMobile");
+    const pinInput = document.getElementById("loginPin");
+    const submitBtn = document.getElementById("loginSubmit");
+    const errorEl = document.getElementById("loginError");
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      errorEl.textContent = "";
+      submitBtn.disabled = true;
+      try {
+        await this.enter(mobileInput.value, pinInput.value);
+      } catch (err) {
+        errorEl.textContent = err.message || "Could not enter";
+      } finally {
+        submitBtn.disabled = false;
+      }
     });
   },
 
-  openSettings() {
-    this.prompted = false;
+  show() {
+    if (!this.el) return;
+    this.el.classList.add("show");
+    this.el.setAttribute("aria-hidden", "false");
+    document.getElementById("appShell")?.classList.add("blurred");
+    document.getElementById("fab")?.classList.add("hide");
+  },
+
+  hide() {
+    if (!this.el) return;
+    this.el.classList.remove("show");
+    this.el.setAttribute("aria-hidden", "true");
+    document.getElementById("appShell")?.classList.remove("blurred");
+    document.getElementById("fab")?.classList.remove("hide");
+  },
+
+  async enter(mobile, pin) {
+    const res = await fetch(API_BASE + "/auth.php", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "enter", mobile, pin }),
+    });
+    const data = await res.json().catch(() => ({}));
+
+    if (res.status === 404 && data.needsRegister) {
+      // First time — create space with same mobile + PIN
+      const create = await fetch(API_BASE + "/auth.php", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "register", mobile, pin }),
+      });
+      const created = await create.json().catch(() => ({}));
+      if (!create.ok) {
+        throw new Error(created.error || "Could not create personal space");
+      }
+      Api.setAccessKey(created.token);
+      Api.mobileMasked = created.mobileMasked || "";
+      ToastModule.show("Personal space created", "success");
+      this.hide();
+      this.onReady();
+      return;
+    }
+
+    if (!res.ok) {
+      throw new Error(data.error || "Login failed");
+    }
+
+    Api.setAccessKey(data.token);
+    Api.mobileMasked = data.mobileMasked || "";
+    ToastModule.show(data.message || "Welcome", "success");
+    this.hide();
+    this.onReady();
+  },
+
+  async logout() {
+    try {
+      await Api.request("/auth.php", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "logout" }),
+      });
+    } catch (e) {
+      // still clear local session
+    }
+    Api.clearSession();
+    ToastModule.show("Left personal space", "info");
     this.prompt();
+  },
+
+  async check() {
+    if (!Api.getAccessKey()) {
+      this.prompt();
+      return false;
+    }
+    try {
+      const me = await Api.request("/auth.php?action=me");
+      if (!me.authenticated) {
+        Api.clearSession();
+        this.prompt();
+        return false;
+      }
+      Api.mobileMasked = me.mobileMasked || "";
+      this.hide();
+      return true;
+    } catch (e) {
+      Api.clearSession();
+      this.prompt();
+      return false;
+    }
+  },
+
+  prompt() {
+    this.show();
+    const mobile = document.getElementById("loginMobile");
+    if (mobile) setTimeout(() => mobile.focus(), 50);
+  },
+
+  openSettings() {
+    // Account menu: logout is the main action users need
+    ModalModule.show({
+      title: "Personal space",
+      message: Api.mobileMasked
+        ? `Signed in as ${Api.mobileMasked}`
+        : "You are in your private space.",
+      confirmText: "Leave / Logout",
+      cancelText: "Stay",
+      danger: true,
+      onConfirm: () => this.logout(),
+    });
+  },
+
+  onReady() {
+    FilesModule.loadFiles();
+    HealthBanner.check();
+    const label = document.getElementById("accountLabel");
+    if (label) label.textContent = Api.mobileMasked || "Account";
   },
 };
 
@@ -457,6 +581,7 @@ window.UploadModule = {
       formData.append("fileName", file.name);
       formData.append("uploadId", this.uploadId);
       formData.append("fileSize", String(file.size));
+      formData.append("folder", Api.currentFolder || "");
 
       try {
         const data = await this.uploadChunk(formData);
@@ -500,6 +625,7 @@ window.UploadModule = {
           fileName: file.name,
           totalChunks: this.totalChunks,
           uploadId: this.uploadId,
+          folder: Api.currentFolder || "",
         }),
       });
     } catch (error) {
@@ -514,6 +640,7 @@ window.UploadModule = {
                 fileName: file.name,
                 totalChunks: this.totalChunks,
                 uploadId: this.uploadId,
+                folder: Api.currentFolder || "",
                 overwrite: true,
               }),
             });
@@ -646,7 +773,6 @@ window.FilesModule = {
         .querySelectorAll(".dropdown-menu.show")
         .forEach((menu) => menu.classList.remove("show"));
     });
-    this.loadFiles();
   },
 
   formatSize(bytes) {
@@ -669,9 +795,6 @@ window.FilesModule = {
     if ((mime || "").startsWith("audio/")) return "AUD";
     if (ext === "pdf") return "PDF";
     if (["zip"].includes(ext)) return "ZIP";
-    if (["doc", "docx"].includes(ext)) return "DOC";
-    if (["xls", "xlsx"].includes(ext)) return "XLS";
-    if (["ppt", "pptx"].includes(ext)) return "PPT";
     return "FILE";
   },
 
@@ -686,155 +809,117 @@ window.FilesModule = {
     label.textContent = `${this.formatSize(limits.usedBytes)} / ${this.formatSize(limits.quotaBytes)} used · max file ${limits.maxUploadMB} MB`;
   },
 
+  renderBreadcrumb(folder) {
+    const nav = document.getElementById("folderBreadcrumb");
+    if (!nav) return;
+    nav.innerHTML = "";
+    const root = document.createElement("button");
+    root.type = "button";
+    root.className = "crumb";
+    root.textContent = "My space";
+    root.addEventListener("click", () => this.openFolder(""));
+    nav.appendChild(root);
+
+    if (!folder) return;
+    const parts = folder.split("/");
+    let acc = "";
+    parts.forEach((part, i) => {
+      acc = acc ? `${acc}/${part}` : part;
+      const sep = document.createElement("span");
+      sep.className = "crumb-sep";
+      sep.textContent = "/";
+      nav.appendChild(sep);
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "crumb";
+      btn.textContent = part;
+      const path = acc;
+      btn.addEventListener("click", () => this.openFolder(path));
+      if (i === parts.length - 1) btn.disabled = true;
+      nav.appendChild(btn);
+    });
+  },
+
+  openFolder(folder) {
+    Api.currentFolder = folder || "";
+    this.loadFiles();
+  },
+
+  createFolder() {
+    ModalModule.show({
+      title: "New folder",
+      message: "Name your folder (letters, numbers, spaces — no dots).",
+      input: true,
+      inputValue: "",
+      confirmText: "Create",
+      onConfirm: async (name) => {
+        if (!name) return;
+        try {
+          await Api.request("/mkdir.php", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              folder: Api.currentFolder || "",
+              name,
+            }),
+          });
+          ToastModule.show("Folder created", "success");
+          this.loadFiles();
+        } catch (error) {
+          if (error.authRequired) AuthGate.prompt();
+          ToastModule.show(error.message || "Could not create folder", "error");
+        }
+      },
+    });
+  },
+
   loadFiles: async function () {
     const list = document.getElementById("fileList");
     list.innerHTML = '<div class="loader" role="status" aria-label="Loading"></div>';
+    this.renderBreadcrumb(Api.currentFolder || "");
 
     try {
-      const data = await Api.request("/list.php");
-      // Support both legacy string[] and 1.3 object list payloads
-      const files = Array.isArray(data)
-        ? data.map((name) => (typeof name === "string" ? { name } : name))
-        : data.files || [];
-      Api.limits = (!Array.isArray(data) && data.limits) || null;
-      Api.allowedExtensions =
-        (!Array.isArray(data) && data.allowedExtensions) || null;
+      const q = Api.currentFolder
+        ? `?folder=${encodeURIComponent(Api.currentFolder)}`
+        : "";
+      const data = await Api.request("/list.php" + q);
+      const folders = data.folders || [];
+      const files = data.files || [];
+      Api.limits = data.limits || null;
+      Api.allowedExtensions = data.allowedExtensions || null;
+      Api.mobileMasked = data.mobileMasked || Api.mobileMasked;
       this.updateQuota(Api.limits);
 
-      const accept = data.accept || (Api.allowedExtensions || []).map((e) => `.${e}`).join(",");
+      const accountLabel = document.getElementById("accountLabel");
+      if (accountLabel) accountLabel.textContent = Api.mobileMasked || "Account";
+
+      const accept =
+        data.accept || (Api.allowedExtensions || []).map((e) => `.${e}`).join(",");
       const input = document.getElementById("fileInput");
       if (input && accept) input.setAttribute("accept", accept);
 
       list.innerHTML = "";
 
-      if (!files.length) {
+      if (!folders.length && !files.length) {
         const empty = document.createElement("li");
         empty.className = "empty-state";
-        empty.textContent = "No files yet. Tap + to upload.";
+        empty.textContent = "Empty. Create a folder or upload a file.";
         list.appendChild(empty);
         return;
       }
 
+      folders.forEach((folder, index) => {
+        list.appendChild(this.renderFolderRow(folder, index));
+      });
       files.forEach((file, index) => {
-        const name = typeof file === "string" ? file : file.name;
-        const size = file.size || 0;
-        const mtime = file.mtime || 0;
-        const ext = file.ext || (name.split(".").pop() || "").toLowerCase();
-        const mime = file.mime || "";
-        const menuId = `menu-${index}`;
-
-        const li = document.createElement("li");
-        li.className = "file-row";
-
-        const main = document.createElement("div");
-        main.className = "file-item-header";
-
-        const left = document.createElement("div");
-        left.className = "file-main";
-
-        const thumbWrap = document.createElement("div");
-        thumbWrap.className = "file-thumb";
-        if (file.thumbUrl) {
-          const img = document.createElement("img");
-          img.alt = "";
-          img.loading = "lazy";
-          img.src = Api.absoluteUrl(file.thumbUrl);
-          thumbWrap.appendChild(img);
-        } else {
-          const badge = document.createElement("span");
-          badge.className = "file-type-badge";
-          badge.textContent = this.typeIcon(ext, mime);
-          thumbWrap.appendChild(badge);
-        }
-
-        const meta = document.createElement("div");
-        meta.className = "file-meta";
-        const title = document.createElement("strong");
-        title.className = "file-name";
-        title.textContent = name;
-        const sub = document.createElement("div");
-        sub.className = "file-sub";
-        sub.textContent = `${this.formatSize(size)} · ${this.formatDate(mtime)}`;
-        meta.append(title, sub);
-        left.append(thumbWrap, meta);
-
-        const menuContainer = document.createElement("div");
-        menuContainer.className = "menu-container";
-
-        const menuBtn = document.createElement("button");
-        menuBtn.className = "three-dot-btn";
-        menuBtn.type = "button";
-        menuBtn.setAttribute("aria-label", `Actions for ${name}`);
-        menuBtn.setAttribute("aria-haspopup", "true");
-        menuBtn.textContent = "⋯";
-        menuBtn.addEventListener("click", (event) => this.toggleMenu(menuId, event));
-
-        const menu = document.createElement("div");
-        menu.className = "dropdown-menu";
-        menu.id = menuId;
-        menu.setAttribute("role", "menu");
-
-        const renameBtn = document.createElement("button");
-        renameBtn.className = "dropdown-item rename";
-        renameBtn.type = "button";
-        renameBtn.setAttribute("role", "menuitem");
-        renameBtn.textContent = "Rename";
-        renameBtn.addEventListener("click", () => this.renameFile(name));
-
-        const deleteBtn = document.createElement("button");
-        deleteBtn.className = "dropdown-item delete";
-        deleteBtn.type = "button";
-        deleteBtn.setAttribute("role", "menuitem");
-        deleteBtn.textContent = "Delete";
-        deleteBtn.addEventListener("click", () => this.deleteFile(name));
-
-        menu.append(renameBtn, deleteBtn);
-        menuContainer.append(menuBtn, menu);
-        main.append(left, menuContainer);
-
-        const actions = document.createElement("div");
-        actions.className = "file-actions";
-
-        const view = document.createElement("a");
-        view.className = "btn view";
-        view.target = "_blank";
-        view.rel = "noopener noreferrer";
-        view.textContent = "View";
-        if (file.viewUrl || file.downloadUrl) {
-          view.href = Api.absoluteUrl(file.viewUrl || file.downloadUrl);
-        } else {
-          view.href = "#";
-          view.addEventListener("click", (e) => {
-            e.preventDefault();
-            this.openAuthenticated(name, true);
-          });
-        }
-
-        const download = document.createElement("a");
-        download.className = "btn download";
-        download.textContent = "Download";
-        if (file.downloadUrl || file.viewUrl) {
-          download.href = Api.absoluteUrl(file.downloadUrl || file.viewUrl);
-        } else {
-          download.href = "#";
-          download.addEventListener("click", (e) => {
-            e.preventDefault();
-            this.openAuthenticated(name, false);
-          });
-        }
-
-        actions.append(view, download);
-        li.append(main, actions);
-        list.appendChild(li);
+        list.appendChild(this.renderFileRow(file, index));
       });
     } catch (error) {
       list.innerHTML = "";
       const err = document.createElement("li");
       err.className = "empty-state";
       err.textContent = error.authRequired
-        ? error.setupRequired
-          ? "Server has no access key yet. Run php generate-key.php, then unlock here."
-          : "Unlock with your access key to see files."
+        ? "Enter your personal space to see files."
         : error.message || "Failed to load files";
       list.appendChild(err);
       if (error.authRequired) AuthGate.prompt();
@@ -842,36 +927,150 @@ window.FilesModule = {
     }
   },
 
-  async openAuthenticated(fileName, view) {
-    try {
-      const q = view ? "&view=1" : "";
-      const res = await fetch(
-        `${API_BASE}/download.php?file=${encodeURIComponent(fileName)}${q}`,
-        { headers: Api.authHeaders() }
-      );
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        const err = new Error(data.error || `Download failed (${res.status})`);
-        err.authRequired = res.status === 401 || res.status === 503 || !!data.authRequired;
-        throw err;
-      }
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      if (view) {
-        window.open(url, "_blank", "noopener,noreferrer");
-      } else {
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = fileName;
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-      }
-      setTimeout(() => URL.revokeObjectURL(url), 60_000);
-    } catch (error) {
-      if (error.authRequired) AuthGate.prompt();
-      ToastModule.show(error.message || "Download failed", "error");
+  renderFolderRow(folder, index) {
+    const li = document.createElement("li");
+    li.className = "file-row folder-row";
+    const main = document.createElement("div");
+    main.className = "file-item-header";
+
+    const left = document.createElement("button");
+    left.type = "button";
+    left.className = "file-main folder-open";
+    left.addEventListener("click", () => this.openFolder(folder.path));
+
+    const thumb = document.createElement("div");
+    thumb.className = "file-thumb";
+    const badge = document.createElement("span");
+    badge.className = "file-type-badge";
+    badge.textContent = "DIR";
+    thumb.appendChild(badge);
+
+    const meta = document.createElement("div");
+    meta.className = "file-meta";
+    const title = document.createElement("strong");
+    title.className = "file-name";
+    title.textContent = folder.name;
+    const sub = document.createElement("div");
+    sub.className = "file-sub";
+    sub.textContent = "Folder";
+    meta.append(title, sub);
+    left.append(thumb, meta);
+
+    const menuId = `folder-menu-${index}`;
+    const menuContainer = this.buildMenu(menuId, [
+      {
+        label: "Rename",
+        className: "rename",
+        onClick: () => this.renameItem(folder.name, true),
+      },
+      {
+        label: "Delete",
+        className: "delete",
+        onClick: () => this.deleteItem(folder.name, true),
+      },
+    ]);
+
+    main.append(left, menuContainer);
+    li.appendChild(main);
+    return li;
+  },
+
+  renderFileRow(file, index) {
+    const name = file.name;
+    const li = document.createElement("li");
+    li.className = "file-row";
+
+    const main = document.createElement("div");
+    main.className = "file-item-header";
+
+    const left = document.createElement("div");
+    left.className = "file-main";
+
+    const thumbWrap = document.createElement("div");
+    thumbWrap.className = "file-thumb";
+    if (file.thumbUrl) {
+      const img = document.createElement("img");
+      img.alt = "";
+      img.loading = "lazy";
+      img.src = Api.absoluteUrl(file.thumbUrl);
+      thumbWrap.appendChild(img);
+    } else {
+      const badge = document.createElement("span");
+      badge.className = "file-type-badge";
+      badge.textContent = this.typeIcon(file.ext, file.mime);
+      thumbWrap.appendChild(badge);
     }
+
+    const meta = document.createElement("div");
+    meta.className = "file-meta";
+    const title = document.createElement("strong");
+    title.className = "file-name";
+    title.textContent = name;
+    const sub = document.createElement("div");
+    sub.className = "file-sub";
+    sub.textContent = `${this.formatSize(file.size || 0)} · ${this.formatDate(file.mtime || 0)}`;
+    meta.append(title, sub);
+    left.append(thumbWrap, meta);
+
+    const menuId = `menu-${index}`;
+    const menuContainer = this.buildMenu(menuId, [
+      {
+        label: "Rename",
+        className: "rename",
+        onClick: () => this.renameItem(name, false),
+      },
+      {
+        label: "Delete",
+        className: "delete",
+        onClick: () => this.deleteItem(name, false),
+      },
+    ]);
+
+    main.append(left, menuContainer);
+
+    const actions = document.createElement("div");
+    actions.className = "file-actions";
+
+    const view = document.createElement("a");
+    view.className = "btn view";
+    view.target = "_blank";
+    view.rel = "noopener noreferrer";
+    view.textContent = "View";
+    view.href = Api.absoluteUrl(file.viewUrl || file.downloadUrl);
+
+    const download = document.createElement("a");
+    download.className = "btn download";
+    download.textContent = "Download";
+    download.href = Api.absoluteUrl(file.downloadUrl || file.viewUrl);
+
+    actions.append(view, download);
+    li.append(main, actions);
+    return li;
+  },
+
+  buildMenu(menuId, items) {
+    const menuContainer = document.createElement("div");
+    menuContainer.className = "menu-container";
+    const menuBtn = document.createElement("button");
+    menuBtn.className = "three-dot-btn";
+    menuBtn.type = "button";
+    menuBtn.setAttribute("aria-label", "Actions");
+    menuBtn.textContent = "⋯";
+    menuBtn.addEventListener("click", (event) => this.toggleMenu(menuId, event));
+
+    const menu = document.createElement("div");
+    menu.className = "dropdown-menu";
+    menu.id = menuId;
+    items.forEach((item) => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = `dropdown-item ${item.className || ""}`;
+      btn.textContent = item.label;
+      btn.addEventListener("click", item.onClick);
+      menu.appendChild(btn);
+    });
+    menuContainer.append(menuBtn, menu);
+    return menuContainer;
   },
 
   toggleMenu(menuId, event) {
@@ -879,14 +1078,15 @@ window.FilesModule = {
     document.querySelectorAll(".dropdown-menu").forEach((menu) => {
       if (menu.id !== menuId) menu.classList.remove("show");
     });
-    const menu = document.getElementById(menuId);
-    if (menu) menu.classList.toggle("show");
+    document.getElementById(menuId)?.classList.toggle("show");
   },
 
-  deleteFile(fileName) {
+  deleteItem(name, isFolder) {
     ModalModule.show({
-      title: "Delete File",
-      message: `Delete ${fileName}?`,
+      title: isFolder ? "Delete folder" : "Delete file",
+      message: isFolder
+        ? `Delete empty folder "${name}"?`
+        : `Delete ${name}?`,
       confirmText: "Delete",
       danger: true,
       onConfirm: async () => {
@@ -894,9 +1094,13 @@ window.FilesModule = {
           await Api.request("/delete.php", {
             method: "DELETE",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ fileName }),
+            body: JSON.stringify({
+              fileName: name,
+              folder: Api.currentFolder || "",
+              isFolder: !!isFolder,
+            }),
           });
-          ToastModule.show("File deleted", "success");
+          ToastModule.show(isFolder ? "Folder deleted" : "File deleted", "success");
           this.loadFiles();
         } catch (error) {
           if (error.authRequired) AuthGate.prompt();
@@ -906,9 +1110,9 @@ window.FilesModule = {
     });
   },
 
-  renameFile(oldName) {
+  renameItem(oldName, isFolder) {
     ModalModule.show({
-      title: "Rename File",
+      title: isFolder ? "Rename folder" : "Rename file",
       input: true,
       inputValue: oldName,
       confirmText: "Save",
@@ -918,10 +1122,15 @@ window.FilesModule = {
           await Api.request("/rename.php", {
             method: "PUT",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ oldName, newName }),
+            body: JSON.stringify({
+              oldName,
+              newName,
+              folder: Api.currentFolder || "",
+              isFolder: !!isFolder,
+            }),
           });
-          ToastModule.show("File renamed", "success");
-          FilesModule.loadFiles();
+          ToastModule.show("Renamed", "success");
+          this.loadFiles();
         } catch (error) {
           if (error.authRequired) AuthGate.prompt();
           ToastModule.show(error.message || "Rename failed", "error");
@@ -972,18 +1181,15 @@ window.DragDropModule = {
 
 
 /* ===== script.js ===== */
-const APP_UI_VERSION = "1.3.0";
+const APP_UI_VERSION = "1.4.0";
 const APP_API_VERSION = "v1";
 
 function detectServerBase() {
   let path = window.location.pathname || "";
-  // Normalize trailing slash except for domain root
   path = path.replace(/\/+$/, "") || "";
-
   if (path.endsWith("/index.html")) {
     path = path.slice(0, -"/index.html".length);
   }
-  // ui/v1 snapshot lives under the app root
   if (/\/ui\/v\d+$/i.test(path)) {
     path = path.replace(/\/ui\/v\d+$/i, "");
   }
@@ -1006,7 +1212,7 @@ async function resolveApiBase() {
 }
 
 function bindUiEvents() {
-  const keyBtn = document.getElementById("keyBtn");
+  const accountBtn = document.getElementById("accountBtn");
   const fab = document.getElementById("fab");
   const overlay = document.getElementById("overlay");
   const uploadBox = document.getElementById("uploadBox");
@@ -1014,15 +1220,13 @@ function bindUiEvents() {
   const pauseBtn = document.getElementById("pauseUploadBtn");
   const resumeBtn = document.getElementById("resumeUploadBtn");
   const cancelBtn = document.getElementById("cancelUploadBtn");
+  const newFolderBtn = document.getElementById("newFolderBtn");
 
-  if (keyBtn) keyBtn.addEventListener("click", () => AuthGate.openSettings());
+  if (accountBtn) accountBtn.addEventListener("click", () => AuthGate.openSettings());
+  if (newFolderBtn) newFolderBtn.addEventListener("click", () => FilesModule.createFolder());
   if (fab) fab.addEventListener("click", () => openUpload());
-  if (overlay) {
-    overlay.addEventListener("click", () => closeUpload());
-  }
-  if (uploadBox) {
-    uploadBox.addEventListener("click", (e) => e.stopPropagation());
-  }
+  if (overlay) overlay.addEventListener("click", () => closeUpload());
+  if (uploadBox) uploadBox.addEventListener("click", (e) => e.stopPropagation());
   if (startBtn) startBtn.addEventListener("click", () => UploadModule.start());
   if (pauseBtn) pauseBtn.addEventListener("click", () => UploadModule.pause());
   if (resumeBtn) resumeBtn.addEventListener("click", () => UploadModule.resume());
@@ -1034,13 +1238,23 @@ async function bootApp() {
   bindUiEvents();
   ToastModule.init();
   ModalModule.init();
+  AuthGate.init();
   HealthBanner.init();
   FilesModule.init();
   UploadModule.init();
   DragDropModule.init();
+
+  const ok = await AuthGate.check();
+  if (ok) {
+    AuthGate.onReady();
+  }
 }
 
 function openUpload() {
+  if (!Api.getAccessKey()) {
+    AuthGate.prompt();
+    return;
+  }
   const fab = document.getElementById("fab");
   const overlay = document.getElementById("overlay");
   fab.classList.add("hide");

@@ -2,8 +2,8 @@
 $root = dirname(__DIR__, 2);
 require $root . '/config.php';
 
-$fileName = app_sanitize_filename($_GET['file'] ?? null);
-if ($fileName === null) {
+$relative = $_GET['file'] ?? null;
+if (!is_string($relative) || $relative === '') {
     app_json(['error' => 'File not specified'], 400);
 }
 
@@ -11,39 +11,42 @@ $viewParam = $_GET['view'] ?? '0';
 $view = !in_array((string) $viewParam, ['0', 'false', ''], true);
 $exp = $_GET['exp'] ?? null;
 $sig = $_GET['sig'] ?? null;
+$uid = isset($_GET['uid']) && preg_match('/^[a-f0-9]{32,128}$/i', $_GET['uid'])
+    ? strtolower($_GET['uid'])
+    : '';
 
 $authorized = false;
-$signedView = app_verify_download_signature($fileName, $exp, $sig, true);
-$signedDownload = app_verify_download_signature($fileName, $exp, $sig, false);
+$signedView = $uid !== '' && app_verify_download_signature($relative, $exp, $sig, true, $uid);
+$signedDownload = $uid !== '' && app_verify_download_signature($relative, $exp, $sig, false, $uid);
 
 if ($signedView || $signedDownload) {
     $authorized = true;
-    // Use the disposition that matches the signature that validated
     $view = $signedView && !$signedDownload ? true : ($signedDownload && !$signedView ? false : $view);
+    // Load user context for path resolution
+    $user = app_load_user($uid);
+    if ($user === null) {
+        app_json(['error' => 'Unauthorized'], 401);
+    }
+    app_set_current_user($user);
 } else {
-    require_once $root . '/auth.php';
-    if (app_has_any_token()) {
-        $token = app_get_bearer_token();
-        if ($token !== null && validateToken($token)) {
+    // Session auth fallback
+    $token = app_get_bearer_token();
+    $session = app_load_session($token);
+    if ($session !== null) {
+        $user = app_load_user($session['userId']);
+        if ($user !== null) {
+            app_set_current_user($user);
             $authorized = true;
         }
     }
 }
 
-if (!$authorized) {
-    if (!app_has_any_token()) {
-        app_json([
-            'error' => 'Access key not configured on server. Run: php generate-key.php',
-            'authRequired' => true,
-            'setupRequired' => true,
-        ], 503);
-    }
+if (!$authorized || app_current_user() === null) {
     app_json(['error' => 'Unauthorized', 'authRequired' => true], 401);
 }
 
-$filePath = UPLOAD_DIR . $fileName;
-
-if (!file_exists($filePath) || !is_file($filePath)) {
+$filePath = app_resolve_user_file($relative);
+if ($filePath === null || !is_file($filePath)) {
     app_json(['error' => 'File not found'], 404);
 }
 
@@ -54,9 +57,10 @@ if ($size === false) {
     app_json(['error' => 'File not readable'], 500);
 }
 
+$baseName = basename($filePath);
 header('Content-Description: File Transfer');
 header('Content-Type: ' . $mime);
-header('Content-Disposition: ' . $disposition . '; filename="' . str_replace('"', '', $fileName) . '"');
+header('Content-Disposition: ' . $disposition . '; filename="' . str_replace('"', '', $baseName) . '"');
 header('Content-Length: ' . $size);
 header('X-Content-Type-Options: nosniff');
 header('Cache-Control: private, no-store');

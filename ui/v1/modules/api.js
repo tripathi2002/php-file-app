@@ -1,22 +1,37 @@
 window.Api = {
   limits: null,
   allowedExtensions: null,
+  currentFolder: "",
+  mobileMasked: "",
 
   getAccessKey() {
-    return localStorage.getItem("fileAppAccessKey") || "";
+    return (
+      localStorage.getItem("fileAppSession") ||
+      localStorage.getItem("fileAppAccessKey") ||
+      ""
+    );
   },
 
   setAccessKey(key) {
     const value = (key || "").trim();
-    if (value) localStorage.setItem("fileAppAccessKey", value);
-    else localStorage.removeItem("fileAppAccessKey");
+    if (value) {
+      localStorage.setItem("fileAppSession", value);
+    } else {
+      localStorage.removeItem("fileAppSession");
+      localStorage.removeItem("fileAppAccessKey");
+    }
+  },
+
+  clearSession() {
+    this.setAccessKey("");
+    this.mobileMasked = "";
+    this.currentFolder = "";
   },
 
   authHeaders(extra = {}) {
     const headers = { ...extra };
     const key = this.getAccessKey();
     if (key) {
-      // Send both — LiteSpeed/Hostinger often strips Authorization
       headers.Authorization = `Bearer ${key}`;
       headers["X-Access-Key"] = key;
     }
@@ -43,11 +58,10 @@ window.Api = {
       data = { error: text || "Invalid server response" };
     }
 
-    if (res.status === 401 || res.status === 503 || data?.authRequired) {
+    if (res.status === 401 || data?.authRequired) {
       const err = new Error(data?.error || "Unauthorized");
       err.code = res.status;
       err.authRequired = true;
-      err.setupRequired = !!data?.setupRequired;
       throw err;
     }
 

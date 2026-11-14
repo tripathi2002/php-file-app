@@ -195,40 +195,114 @@ function app_tokens_dir(): string
     return __DIR__ . '/tokens';
 }
 
-function app_has_any_token(): bool
-{
-    $dir = app_tokens_dir();
-    if (!is_dir($dir)) {
-        return false;
-    }
-    foreach (glob($dir . '/*.json') ?: [] as $file) {
-        // Ignore empty/corrupt placeholder files
-        $raw = @file_get_contents($file);
-        $data = json_decode($raw ?: '', true);
-        if (is_array($data) && !empty($data['token'])) {
-            return true;
-        }
-    }
-    return false;
-}
-
-/** Auth is always required. If no key has been issued, refuse with 503. */
+/** Require a logged-in personal space (mobile + PIN session). */
 function app_require_auth(): void
 {
     require_once __DIR__ . '/auth.php';
 
-    if (!app_has_any_token()) {
+    $token = app_get_bearer_token();
+    $session = app_load_session($token);
+    if ($session === null) {
         app_json([
-            'error' => 'Access key not configured on server. Run: php generate-key.php',
+            'error' => 'Please enter your personal space (mobile + PIN)',
             'authRequired' => true,
-            'setupRequired' => true,
-        ], 503);
+        ], 401);
     }
 
-    $token = app_get_bearer_token();
-    if ($token === null || !validateToken($token)) {
-        app_json(['error' => 'Unauthorized', 'authRequired' => true], 401);
+    $user = app_load_user($session['userId']);
+    if ($user === null) {
+        app_destroy_session($token);
+        app_json([
+            'error' => 'Account not found. Sign in again.',
+            'authRequired' => true,
+        ], 401);
     }
+
+    app_set_current_user($user);
+    app_ensure_dir(app_upload_dir(), 0755);
+    app_ensure_dir(app_chunk_dir(), 0755);
+}
+
+function app_upload_dir(): string
+{
+    $user = app_current_user();
+    if ($user === null) {
+        return rtrim(UPLOAD_DIR, '/\\') . '/';
+    }
+    return app_user_dir($user['id']) . '/files/';
+}
+
+function app_chunk_dir(): string
+{
+    $user = app_current_user();
+    if ($user === null) {
+        return rtrim(CHUNK_DIR, '/\\') . '/';
+    }
+    return app_user_dir($user['id']) . '/chunks/';
+}
+
+/** Sanitize a relative folder path like "photos/2024". Empty string = root. */
+function app_sanitize_folder(?string $folder): string
+{
+    if ($folder === null || trim($folder) === '' || $folder === '/' || $folder === '.') {
+        return '';
+    }
+    $folder = str_replace('\\', '/', $folder);
+    $parts = [];
+    foreach (explode('/', $folder) as $part) {
+        $part = trim($part);
+        if ($part === '' || $part === '.' || $part === '..') {
+            continue;
+        }
+        $safe = app_sanitize_filename($part);
+        if ($safe === null) {
+            continue;
+        }
+        $parts[] = $safe;
+    }
+    return implode('/', $parts);
+}
+
+function app_folder_path(string $folder = ''): string
+{
+    $folder = app_sanitize_folder($folder);
+    $base = rtrim(app_upload_dir(), '/\\');
+    if ($folder === '') {
+        return $base . '/';
+    }
+    return $base . '/' . $folder . '/';
+}
+
+function app_resolve_user_file(string $relativePath): ?string
+{
+    $relativePath = str_replace('\\', '/', $relativePath);
+    $relativePath = ltrim($relativePath, '/');
+    if ($relativePath === '' || str_contains($relativePath, "\0")) {
+        return null;
+    }
+    $parts = explode('/', $relativePath);
+    $safeParts = [];
+    foreach ($parts as $i => $part) {
+        if ($part === '' || $part === '.' || $part === '..') {
+            return null;
+        }
+        $safe = app_sanitize_filename($part);
+        if ($safe === null) {
+            return null;
+        }
+        $safeParts[] = $safe;
+    }
+    $full = rtrim(app_upload_dir(), '/\\') . '/' . implode('/', $safeParts);
+    $root = realpath(app_upload_dir());
+    // Parent dirs may not exist yet during checks
+    $parent = dirname($full);
+    if (is_dir($parent)) {
+        $realParent = realpath($parent);
+        if ($root === false || $realParent === false || !str_starts_with($realParent, $root)) {
+            return null;
+        }
+    }
+    return $full;
 }
 
 function app_signing_secret(): string
@@ -248,14 +322,20 @@ function app_signing_secret(): string
     return $secret !== '' ? $secret : 'insecure-fallback-change-me';
 }
 
-function app_sign_download(string $fileName, int $expires, bool $view = false): string
+function app_sign_download(string $fileName, int $expires, bool $view = false, ?string $userId = null): string
 {
-    $payload = $fileName . '|' . $expires . '|' . ($view ? '1' : '0');
+    $uid = $userId ?? (app_current_user()['id'] ?? '');
+    $payload = $uid . '|' . $fileName . '|' . $expires . '|' . ($view ? '1' : '0');
     return hash_hmac('sha256', $payload, app_signing_secret());
 }
 
-function app_verify_download_signature(string $fileName, $expires, ?string $sig, bool $view = false): bool
-{
+function app_verify_download_signature(
+    string $fileName,
+    $expires,
+    ?string $sig,
+    bool $view = false,
+    ?string $userId = null
+): bool {
     if ($sig === null || $sig === '' || !is_numeric($expires)) {
         return false;
     }
@@ -263,18 +343,23 @@ function app_verify_download_signature(string $fileName, $expires, ?string $sig,
     if ($expires < time()) {
         return false;
     }
-    $expected = app_sign_download($fileName, $expires, $view);
+    $uid = $userId ?? '';
+    $expected = app_sign_download($fileName, $expires, $view, $uid);
     return hash_equals($expected, $sig);
 }
 
-function app_signed_download_url(string $fileName, bool $view = false, int $ttlSeconds = 300): string
+function app_signed_download_url(string $fileName, bool $view = false, int $ttlSeconds = 3600, string $folder = ''): string
 {
+    $folder = app_sanitize_folder($folder);
+    $rel = $folder === '' ? $fileName : $folder . '/' . $fileName;
+    $user = app_current_user();
+    $uid = $user['id'] ?? '';
     $expires = time() + $ttlSeconds;
-    $sig = app_sign_download($fileName, $expires, $view);
-    // Path relative to the app root (works for /file-app and /sit/file-app).
+    $sig = app_sign_download($rel, $expires, $view, $uid);
     $base = 'api/' . APP_API_VERSION . '/download.php';
     $query = http_build_query([
-        'file' => $fileName,
+        'file' => $rel,
+        'uid' => $uid,
         'exp' => $expires,
         'sig' => $sig,
         'view' => $view ? '1' : '0',

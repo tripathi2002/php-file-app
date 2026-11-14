@@ -12,6 +12,7 @@ $chunkIndex = app_sanitize_chunk_index($_POST['chunkIndex'] ?? null);
 $totalChunks = app_sanitize_chunk_index($_POST['totalChunks'] ?? null);
 $fileName = app_sanitize_filename($_POST['fileName'] ?? null);
 $uploadId = app_sanitize_upload_id($_POST['uploadId'] ?? null);
+$folder = app_sanitize_folder($_POST['folder'] ?? '');
 $fileSize = isset($_POST['fileSize']) && is_numeric($_POST['fileSize'])
     ? (int) $_POST['fileSize']
     : null;
@@ -53,16 +54,8 @@ if (!isset($file['error']) || $file['error'] !== UPLOAD_ERR_OK) {
     app_json(['error' => 'Chunk upload failed'], 400);
 }
 
-if (($file['size'] ?? 0) > $maxBytes) {
-    app_json([
-        'error' => 'File too large',
-        'maxBytes' => $maxBytes,
-        'maxMB' => round($maxBytes / (1024 * 1024), 1),
-    ], 413);
-}
-
 $quota = app_storage_quota_bytes();
-$used = app_dir_size(UPLOAD_DIR) + app_dir_size(CHUNK_DIR);
+$used = app_dir_size(app_upload_dir()) + app_dir_size(app_chunk_dir());
 if ($used + (int) ($file['size'] ?? 0) > $quota) {
     app_json([
         'error' => 'Storage quota exceeded',
@@ -72,16 +65,25 @@ if ($used + (int) ($file['size'] ?? 0) > $quota) {
 }
 
 $fileKey = app_chunk_key($uploadId, $fileName);
-$chunkPath = CHUNK_DIR . $fileKey;
+$chunkPath = app_chunk_dir() . $fileKey;
 app_ensure_dir($chunkPath, 0755);
+app_ensure_dir(app_folder_path($folder), 0755);
 
 $dest = $chunkPath . '/chunk_' . $chunkIndex;
 if (!move_uploaded_file($file['tmp_name'], $dest)) {
     app_json(['error' => 'Failed to store chunk'], 500);
 }
 
+// Remember target folder for merge
+@file_put_contents($chunkPath . '/meta.json', json_encode([
+    'fileName' => $fileName,
+    'folder' => $folder,
+    'uploadId' => $fileKey,
+]));
+
 app_json([
     'message' => "Chunk $chunkIndex uploaded",
     'uploadId' => $fileKey,
     'chunkIndex' => $chunkIndex,
+    'folder' => $folder,
 ]);

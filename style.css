@@ -5,6 +5,131 @@ body {
   font-weight: 500;
 }
 
+.login-gate {
+  position: fixed;
+  inset: 0;
+  z-index: 5000;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: linear-gradient(160deg, #e8f4fc 0%, #f5f7fb 45%, #eef2f7 100%);
+}
+
+.login-gate.show {
+  display: flex;
+}
+
+.login-card {
+  width: 100%;
+  max-width: 380px;
+  background: #fff;
+  border-radius: 18px;
+  padding: 28px 22px;
+  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.12);
+}
+
+.login-card h1 {
+  font-size: 1.4rem;
+  margin-bottom: 8px;
+}
+
+.login-hint {
+  color: #6b7280;
+  font-size: 14px;
+  line-height: 1.45;
+  margin: 0 0 18px;
+}
+
+.field-label {
+  display: block;
+  font-size: 13px;
+  margin: 10px 0 6px;
+  color: #374151;
+}
+
+.login-card input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 12px 14px;
+  border: 1px solid #d1d5db;
+  border-radius: 12px;
+  font-size: 16px;
+}
+
+.login-card input:focus {
+  outline: none;
+  border-color: #0d98d8;
+  box-shadow: 0 0 0 4px rgba(13, 152, 216, 0.12);
+}
+
+.login-error {
+  min-height: 20px;
+  color: #dc2626;
+  font-size: 13px;
+  margin: 10px 0;
+}
+
+.login-submit {
+  width: 100%;
+  margin-top: 6px;
+  min-height: 44px;
+}
+
+.app-shell.blurred {
+  filter: blur(2px);
+  pointer-events: none;
+  user-select: none;
+}
+
+.breadcrumb {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 12px;
+  font-size: 13px;
+}
+
+.crumb {
+  border: none;
+  background: transparent;
+  color: #0d98d8;
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 6px;
+  font-weight: 600;
+}
+
+.crumb:disabled {
+  color: #111827;
+  cursor: default;
+}
+
+.crumb-sep {
+  color: #9ca3af;
+}
+
+.toolbar {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.folder-btn {
+  flex: 0 0 auto;
+  min-width: 120px;
+}
+
+.folder-open {
+  border: none;
+  background: transparent;
+  padding: 0;
+  text-align: left;
+  cursor: pointer;
+  width: 100%;
+}
+
 .container {
   max-width: 720px;
   margin: auto;

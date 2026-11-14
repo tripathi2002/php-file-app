@@ -15,16 +15,16 @@ if ($fileName === null && $uploadId === null) {
 $fileKey = $uploadId !== null
     ? $uploadId
     : app_chunk_key(null, $fileName);
-$chunkPath = CHUNK_DIR . $fileKey;
+$chunkPath = app_chunk_dir() . $fileKey;
 
 if (!is_dir($chunkPath)) {
-    // Idempotent: cancelling a missing session is still success for the UI
     app_json(['message' => 'Cancelled', 'cancelled' => false, 'existed' => false]);
 }
 
 foreach (glob($chunkPath . '/chunk_*') ?: [] as $chunk) {
     @unlink($chunk);
 }
+@unlink($chunkPath . '/meta.json');
 @rmdir($chunkPath);
 
 app_json(['message' => 'Cancelled', 'cancelled' => true, 'existed' => true]);

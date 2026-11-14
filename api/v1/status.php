@@ -15,7 +15,7 @@ if ($fileName === null && $uploadId === null) {
 $fileKey = $uploadId !== null
     ? $uploadId
     : app_chunk_key(null, $fileName);
-$chunkPath = CHUNK_DIR . $fileKey;
+$chunkPath = app_chunk_dir() . $fileKey;
 
 $received = [];
 if (is_dir($chunkPath)) {
