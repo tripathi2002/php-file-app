@@ -53,6 +53,22 @@ Legacy `upload.php` is space-aware (same storage as chunked path).
 
 Also accepts Bearer auth. `Cache-Control: private, no-store`.
 
+## Search / stats / extras
+
+| Endpoint | Notes |
+|----------|-------|
+| `search.php?q=` | Recursive name search (max 100) |
+| `stats.php` | Recursive counts |
+| `large-files.php` | Biggest files for cleanup |
+| `folders.php` | Folder tree for move UI |
+| `trash.php` | Soft-delete / restore / empty |
+| `checksum.php` | md5/sha1/sha256 (≤100MB) |
+| `write.php` | Create/edit txt/md/csv/json |
+| `empty-folder.php` | Wipe folder contents |
+| `change-pin.php` | Personal PIN rotate |
+| `sessions.php` | List / revoke other sessions |
+| `ping.php` | Latency probe |
+
 ## Health / version
 
 `health.php` checks storage, public, users, sessions, ZipArchive.  

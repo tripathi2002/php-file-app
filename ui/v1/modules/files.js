@@ -346,13 +346,29 @@ window.FilesModule = {
   },
 
   openFolder(folder) {
+    this.saveScroll();
     Api.currentFolder = folder || "";
     localStorage.setItem(
       "fileAppLastFolder:" + (Api.space || ""),
       Api.currentFolder
     );
     this.clearSelection();
-    this.loadFiles();
+    this.loadFiles().then(() => this.restoreScroll());
+  },
+
+  saveScroll() {
+    sessionStorage.setItem(
+      "fileAppScroll:" + (Api.space || "") + ":" + (Api.currentFolder || ""),
+      String(window.scrollY || 0)
+    );
+  },
+
+  restoreScroll() {
+    const key = "fileAppScroll:" + (Api.space || "") + ":" + (Api.currentFolder || "");
+    const y = parseInt(sessionStorage.getItem(key) || "0", 10);
+    if (y > 0) {
+      requestAnimationFrame(() => window.scrollTo(0, y));
+    }
   },
 
   createFolder() {
@@ -404,6 +420,7 @@ window.FilesModule = {
       RecentModule.render?.();
       ActivityModule.render?.();
       this.applyReadOnlyUi();
+      this.refreshTypeChips();
 
       const accept =
         data.accept || (Api.allowedExtensions || []).map((e) => `.${e}`).join(",");
@@ -411,6 +428,7 @@ window.FilesModule = {
       if (input && accept) input.setAttribute("accept", accept);
 
       this.renderList();
+      this.restoreScroll();
     } catch (error) {
       list.innerHTML = "";
       const err = document.createElement("li");
@@ -424,10 +442,44 @@ window.FilesModule = {
     }
   },
 
+  refreshTypeChips() {
+    const host = document.getElementById("dynamicExtChips");
+    if (!host) return;
+    const counts = {};
+    (this.files || []).forEach((f) => {
+      const ext = (f.ext || "").toLowerCase();
+      if (!ext) return;
+      counts[ext] = (counts[ext] || 0) + 1;
+    });
+    const top = Object.entries(counts)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 6);
+    host.innerHTML = "";
+    top.forEach(([ext, n]) => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "chip" + (this.filterType === "ext:" + ext ? " active" : "");
+      btn.textContent = `.${ext} (${n})`;
+      btn.addEventListener("click", () => {
+        this.filterType = "ext:" + ext;
+        document
+          .querySelectorAll("[data-type-filter]")
+          .forEach((b) => b.classList.remove("active"));
+        host.querySelectorAll(".chip").forEach((b) => b.classList.remove("active"));
+        btn.classList.add("active");
+        this.renderList();
+      });
+      host.appendChild(btn);
+    });
+  },
+
   matchesType(file) {
     const t = this.filterType;
     if (t === "all") return true;
     if (t === "fav") return this.isFavorite(file.name, false);
+    if (t.startsWith("ext:")) {
+      return (file.ext || "").toLowerCase() === t.slice(4);
+    }
     const mime = file.mime || "";
     const ext = (file.ext || "").toLowerCase();
     if (t === "image") return mime.startsWith("image/");
