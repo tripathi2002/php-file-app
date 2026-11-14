@@ -318,6 +318,20 @@ window.AuthGate = {
     document
       .querySelectorAll("[data-type-filter]")
       .forEach((b) => b.classList.toggle("active", b.getAttribute("data-type-filter") === "all"));
+
+    // Deep-link: ?space=public&folder=photos
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const space = params.get("space");
+      const folder = params.get("folder");
+      if (space === "public" || space === "personal") {
+        Api.setSpace(space);
+        if (folder !== null) Api.currentFolder = folder;
+      } else if (folder !== null && Api.space) {
+        Api.currentFolder = folder;
+      }
+    } catch (e) {}
+
     FilesModule.loadFiles();
     HealthBanner.check();
     this.updateSpaceUi();

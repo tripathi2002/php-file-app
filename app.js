@@ -1619,6 +1619,28 @@ window.FilterPresetsModule = {
 };
 
 
+/* ===== modules\copy-folder-url.js ===== */
+window.CopyFolderUrlModule = {
+  init() {
+    document.getElementById("copyFolderUrlBtn")?.addEventListener("click", () => this.copy());
+  },
+
+  async copy() {
+    const url = new URL(window.location.href);
+    url.hash = "";
+    url.searchParams.set("space", Api.space || "personal");
+    if (Api.currentFolder) url.searchParams.set("folder", Api.currentFolder);
+    else url.searchParams.delete("folder");
+    try {
+      await navigator.clipboard.writeText(url.toString());
+      ToastModule.show("Folder URL copied", "success");
+    } catch (e) {
+      prompt("Folder URL:", url.toString());
+    }
+  },
+};
+
+
 /* ===== modules\auth-gate.js ===== */
 window.AuthGate = {
   el: null,
@@ -1940,6 +1962,20 @@ window.AuthGate = {
     document
       .querySelectorAll("[data-type-filter]")
       .forEach((b) => b.classList.toggle("active", b.getAttribute("data-type-filter") === "all"));
+
+    // Deep-link: ?space=public&folder=photos
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const space = params.get("space");
+      const folder = params.get("folder");
+      if (space === "public" || space === "personal") {
+        Api.setSpace(space);
+        if (folder !== null) Api.currentFolder = folder;
+      } else if (folder !== null && Api.space) {
+        Api.currentFolder = folder;
+      }
+    } catch (e) {}
+
     FilesModule.loadFiles();
     HealthBanner.check();
     this.updateSpaceUi();
@@ -4104,6 +4140,7 @@ async function bootApp() {
   AutoRefreshModule.init();
   PrintListModule.init();
   FilterPresetsModule.init();
+  CopyFolderUrlModule.init();
   initMoreMenu();
   initFolderUpload();
   initZipFolder();
