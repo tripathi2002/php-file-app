@@ -2396,10 +2396,31 @@ window.FilesModule = {
     this.renderList();
   },
 
-  toggleSelect(key) {
+  toggleSelect(key, event) {
+    if (event?.shiftKey && this.lastSelectedKey) {
+      const order = this.visibleKeys();
+      const a = order.indexOf(this.lastSelectedKey);
+      const b = order.indexOf(key);
+      if (a >= 0 && b >= 0) {
+        const [start, end] = a < b ? [a, b] : [b, a];
+        for (let i = start; i <= end; i++) this.selected.add(order[i]);
+        this.updateSelectionBar();
+        this.renderList();
+        return;
+      }
+    }
     if (this.selected.has(key)) this.selected.delete(key);
     else this.selected.add(key);
+    this.lastSelectedKey = key;
     this.updateSelectionBar();
+  },
+
+  visibleKeys() {
+    const { folders, files } = this.visibleItems();
+    return [
+      ...folders.map((f) => `d:${f.name}`),
+      ...files.map((f) => `f:${f.name}`),
+    ];
   },
 
   renderBreadcrumb(folder) {
@@ -2733,8 +2754,9 @@ window.FilesModule = {
     check.className = "row-check";
     check.checked = this.selected.has(`d:${folder.name}`);
     check.addEventListener("click", (e) => e.stopPropagation());
-    check.addEventListener("change", () => {
-      this.toggleSelect(`d:${folder.name}`);
+    check.addEventListener("click", (e) => e.stopPropagation());
+    check.addEventListener("change", (e) => {
+      this.toggleSelect(`d:${folder.name}`, e);
       li.classList.toggle("selected", this.selected.has(`d:${folder.name}`));
       this.updateSelectionBar();
     });
@@ -2799,8 +2821,8 @@ window.FilesModule = {
     check.className = "row-check";
     check.checked = this.selected.has(`f:${name}`);
     check.addEventListener("click", (e) => e.stopPropagation());
-    check.addEventListener("change", () => {
-      this.toggleSelect(`f:${name}`);
+    check.addEventListener("change", (e) => {
+      this.toggleSelect(`f:${name}`, e);
       li.classList.toggle("selected", this.selected.has(`f:${name}`));
       this.updateSelectionBar();
     });
