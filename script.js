@@ -77,6 +77,8 @@ async function bootApp() {
   OfflineModule.init();
   PasteUploadModule.init();
   SearchModule.init();
+  TrashModule.init();
+  ExportModule.init();
   initFolderUpload();
   initZipFolder();
   initPullToRefresh();

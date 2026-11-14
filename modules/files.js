@@ -245,6 +245,7 @@ window.FilesModule = {
     document.getElementById("newNoteBtn")?.classList.toggle("hide", ro);
     document.getElementById("emptyFolderBtn")?.classList.toggle("hide", ro);
     document.getElementById("folderUploadBtn")?.classList.toggle("hide", ro);
+    document.getElementById("trashBtn")?.classList.toggle("hide", ro);
     document.getElementById("fab")?.classList.toggle("readonly-hide", ro);
     document.getElementById("batchDeleteBtn")?.classList.toggle("hide", ro);
     document.getElementById("batchMoveBtn")?.classList.toggle("hide", ro);
@@ -893,11 +894,18 @@ window.FilesModule = {
       title: isFolder ? "Delete folder" : "Delete file",
       message: isFolder
         ? `Delete folder "${name}"? If it has files, confirm again to delete everything inside.`
-        : `Delete ${name}?`,
-      confirmText: "Delete",
+        : `Move "${name}" to trash?`,
+      confirmText: isFolder ? "Delete" : "Trash",
       danger: true,
       onConfirm: async () => {
         try {
+          if (!isFolder && window.TrashModule) {
+            await TrashModule.softDelete(name);
+            ToastModule.show("Moved to trash", "success");
+            ActivityModule.log?.("Trashed", name);
+            this.loadFiles();
+            return;
+          }
           await Api.request("/delete.php", {
             method: "DELETE",
             headers: { "Content-Type": "application/json" },

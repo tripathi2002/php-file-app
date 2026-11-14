@@ -966,6 +966,135 @@ window.SearchModule = {
 };
 
 
+/* ===== modules\trash.js ===== */
+window.TrashModule = {
+  init() {
+    document.getElementById("trashBtn")?.addEventListener("click", () => this.open());
+  },
+
+  async softDelete(name) {
+    await Api.request("/trash.php", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "softDelete",
+        name,
+        folder: Api.currentFolder || "",
+      }),
+    });
+  },
+
+  async open() {
+    if (Api.readOnly) {
+      ToastModule.show("Public space is read-only", "error");
+      return;
+    }
+    try {
+      const data = await Api.request("/trash.php");
+      const items = data.items || [];
+      if (!items.length) {
+        ModalModule.show({
+          title: "Trash",
+          message: "Trash is empty.",
+          confirmText: "OK",
+          cancelText: "Close",
+        });
+        return;
+      }
+      const lines = items
+        .slice(0, 15)
+        .map((i) => `• ${i.name}${i.folder ? " (" + i.folder + ")" : ""}`)
+        .join("\n");
+      ModalModule.show({
+        title: `Trash (${items.length})`,
+        message: lines + (items.length > 15 ? "\n…" : "") + "\n\nRestore newest, or empty all?",
+        confirmText: "Restore newest",
+        cancelText: "Empty trash",
+        danger: false,
+        onConfirm: async () => {
+          try {
+            await Api.request("/trash.php", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ action: "restore", id: items[0].id }),
+            });
+            ToastModule.show("Restored", "success");
+            FilesModule.loadFiles();
+          } catch (e) {
+            ToastModule.show(e.message || "Restore failed", "error");
+          }
+        },
+        onCancel: () => {
+          ModalModule.show({
+            title: "Empty trash?",
+            message: "Permanently delete all trashed files?",
+            confirmText: "Empty",
+            danger: true,
+            onConfirm: async () => {
+              try {
+                const res = await Api.request("/trash.php", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ action: "empty" }),
+                });
+                ToastModule.show(`Removed ${res.removed || 0}`, "success");
+              } catch (e) {
+                ToastModule.show(e.message || "Empty failed", "error");
+              }
+            },
+          });
+        },
+      });
+    } catch (e) {
+      ToastModule.show(e.message || "Could not open trash", "error");
+    }
+  },
+};
+
+
+/* ===== modules\export.js ===== */
+window.ExportModule = {
+  init() {
+    document.getElementById("exportBtn")?.addEventListener("click", () => this.exportCsv());
+  },
+
+  exportCsv() {
+    const rows = [["type", "name", "folder", "size", "mtime", "mime"]];
+    (FilesModule.folders || []).forEach((f) => {
+      rows.push(["folder", f.name, Api.currentFolder || "", "", f.mtime || "", ""]);
+    });
+    (FilesModule.files || []).forEach((f) => {
+      rows.push([
+        "file",
+        f.name,
+        f.folder || Api.currentFolder || "",
+        f.size || 0,
+        f.mtime || "",
+        f.mime || "",
+      ]);
+    });
+    const csv = rows
+      .map((r) =>
+        r
+          .map((cell) => {
+            const s = String(cell ?? "");
+            return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+          })
+          .join(",")
+      )
+      .join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `files-${Api.space || "space"}-${Date.now()}.csv`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+    ToastModule.show("CSV exported", "success");
+    ActivityModule.log?.("Exported CSV");
+  },
+};
+
+
 /* ===== modules\auth-gate.js ===== */
 window.AuthGate = {
   el: null,
@@ -2080,6 +2209,7 @@ window.FilesModule = {
     document.getElementById("newNoteBtn")?.classList.toggle("hide", ro);
     document.getElementById("emptyFolderBtn")?.classList.toggle("hide", ro);
     document.getElementById("folderUploadBtn")?.classList.toggle("hide", ro);
+    document.getElementById("trashBtn")?.classList.toggle("hide", ro);
     document.getElementById("fab")?.classList.toggle("readonly-hide", ro);
     document.getElementById("batchDeleteBtn")?.classList.toggle("hide", ro);
     document.getElementById("batchMoveBtn")?.classList.toggle("hide", ro);
@@ -2728,11 +2858,18 @@ window.FilesModule = {
       title: isFolder ? "Delete folder" : "Delete file",
       message: isFolder
         ? `Delete folder "${name}"? If it has files, confirm again to delete everything inside.`
-        : `Delete ${name}?`,
-      confirmText: "Delete",
+        : `Move "${name}" to trash?`,
+      confirmText: isFolder ? "Delete" : "Trash",
       danger: true,
       onConfirm: async () => {
         try {
+          if (!isFolder && window.TrashModule) {
+            await TrashModule.softDelete(name);
+            ToastModule.show("Moved to trash", "success");
+            ActivityModule.log?.("Trashed", name);
+            this.loadFiles();
+            return;
+          }
           await Api.request("/delete.php", {
             method: "DELETE",
             headers: { "Content-Type": "application/json" },
@@ -3106,6 +3243,8 @@ async function bootApp() {
   OfflineModule.init();
   PasteUploadModule.init();
   SearchModule.init();
+  TrashModule.init();
+  ExportModule.init();
   initFolderUpload();
   initZipFolder();
   initPullToRefresh();
