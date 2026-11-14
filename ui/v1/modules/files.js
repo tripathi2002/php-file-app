@@ -406,22 +406,34 @@ window.FilesModule = {
   createFolder() {
     ModalModule.show({
       title: "New folder",
-      message: "Name your folder (letters, numbers, spaces — no dots).",
+      message: "Name, or nested path like photos/2026 (no dots).",
       input: true,
       inputValue: "",
       confirmText: "Create",
       onConfirm: async (name) => {
         if (!name) return;
         try {
-          await Api.request("/mkdir.php", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              folder: Api.currentFolder || "",
-              name,
-            }),
-          });
+          if (String(name).includes("/")) {
+            await Api.request("/mkdir-path.php", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                folder: Api.currentFolder || "",
+                path: name,
+              }),
+            });
+          } else {
+            await Api.request("/mkdir.php", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                folder: Api.currentFolder || "",
+                name,
+              }),
+            });
+          }
           ToastModule.show("Folder created", "success");
+          ActivityModule.log?.("Created folder", name);
           this.loadFiles();
         } catch (error) {
           if (error.authRequired) AuthGate.prompt();
@@ -1151,30 +1163,39 @@ window.FilesModule = {
     if (!items.length) return;
     ModalModule.show({
       title: "Delete selected",
-      message: `Delete ${items.length} item(s)? Empty folders only.`,
-      confirmText: "Delete",
+      message: `Trash ${items.filter((i) => !i.isFolder).length} file(s) and hard-delete empty folders (${items.filter((i) => i.isFolder).length})?`,
+      confirmText: "Trash / Delete",
       danger: true,
       onConfirm: async () => {
-        try {
-          const res = await Api.request("/batch-delete.php", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              folder: Api.currentFolder || "",
-              items,
-            }),
-          });
-          const failed = (res.failed || []).length;
-          ToastModule.show(
-            failed ? `Deleted ${res.deleted.length}, ${failed} failed` : `Deleted ${res.deleted.length}`,
-            failed ? "error" : "success"
-          );
-          this.clearSelection();
-          this.loadFiles();
-        } catch (error) {
-          if (error.authRequired) AuthGate.prompt();
-          ToastModule.show(error.message || "Batch delete failed", "error");
+        let ok = 0;
+        let fail = 0;
+        for (const item of items) {
+          try {
+            if (!item.isFolder && window.TrashModule) {
+              await TrashModule.softDelete(item.name);
+            } else {
+              await Api.request("/delete.php", {
+                method: "DELETE",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  fileName: item.name,
+                  folder: Api.currentFolder || "",
+                  isFolder: !!item.isFolder,
+                }),
+              });
+            }
+            ok++;
+          } catch (e) {
+            fail++;
+          }
         }
+        ToastModule.show(
+          fail ? `Removed ${ok}, ${fail} failed` : `Removed ${ok}`,
+          fail ? "error" : "success"
+        );
+        ActivityModule.log?.("Batch delete", `${ok} items`);
+        this.clearSelection();
+        this.loadFiles();
       },
     });
   },
