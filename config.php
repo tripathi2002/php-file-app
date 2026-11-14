@@ -1,6 +1,6 @@
 <?php
 define('APP_API_VERSION', 'v1');
-define('APP_UI_VERSION', '1.9.2');
+define('APP_UI_VERSION', '1.9.3');
 
 require_once __DIR__ . '/helpers.php';
 

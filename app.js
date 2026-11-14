@@ -4011,7 +4011,7 @@ window.ShortcutsModule = {
 
 
 /* ===== script.js ===== */
-const APP_UI_VERSION = "1.9.2";
+const APP_UI_VERSION = "1.9.3";
 const APP_API_VERSION = "v1";
 
 function detectServerBase() {

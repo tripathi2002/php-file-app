@@ -2,7 +2,7 @@
 
 Shared **public** space (no login) and private **personal** spaces (mobile + PIN) on shared hosting.
 
-**Current versions:** API `v1` · UI `1.9.2`
+**Current versions:** API `v1` · UI `1.9.3`
 
 ---
 
@@ -17,6 +17,12 @@ Shared **public** space (no login) and private **personal** spaces (mobile + PIN
 Public files: `storage/public/`. Personal: `storage/users/<id>/`.
 
 ---
+
+## Features (1.9.3)
+
+- Auto-refresh · print list · filter presets · invert selection  
+- Purge old trash · extension storage breakdown · demo seed  
+- Focus mode · duplicates finder · upload retry / nav guards  
 
 ## Features (1.9)
 
