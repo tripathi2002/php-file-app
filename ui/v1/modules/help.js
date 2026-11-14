@@ -20,6 +20,8 @@ window.HelpModule = {
         "N  new folder",
         "T  new note",
         "S  slideshow",
+        "G  toggle grid/list",
+        "F  focus mode",
         "R  refresh",
         "Ctrl+A  select all",
         "Ctrl+L  copy current folder path",

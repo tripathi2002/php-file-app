@@ -1149,6 +1149,8 @@ window.HelpModule = {
         "N  new folder",
         "T  new note",
         "S  slideshow",
+        "G  toggle grid/list",
+        "F  focus mode",
         "R  refresh",
         "Ctrl+A  select all",
         "Ctrl+L  copy current folder path",
@@ -3714,6 +3716,16 @@ window.ShortcutsModule = {
     if ((e.key === "s" || e.key === "S") && !e.ctrlKey && !e.metaKey) {
       e.preventDefault();
       FilesModule.startSlideshow?.();
+      return;
+    }
+    if ((e.key === "g" || e.key === "G") && !e.ctrlKey && !e.metaKey) {
+      e.preventDefault();
+      FilesModule.toggleView?.();
+      return;
+    }
+    if ((e.key === "f" || e.key === "F") && !e.ctrlKey && !e.metaKey) {
+      e.preventDefault();
+      FocusModeModule.toggle?.();
       return;
     }
     if ((e.key === "r" || e.key === "R") && !e.ctrlKey && !e.metaKey) {

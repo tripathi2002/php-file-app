@@ -42,6 +42,16 @@ window.ShortcutsModule = {
       FilesModule.startSlideshow?.();
       return;
     }
+    if ((e.key === "g" || e.key === "G") && !e.ctrlKey && !e.metaKey) {
+      e.preventDefault();
+      FilesModule.toggleView?.();
+      return;
+    }
+    if ((e.key === "f" || e.key === "F") && !e.ctrlKey && !e.metaKey) {
+      e.preventDefault();
+      FocusModeModule.toggle?.();
+      return;
+    }
     if ((e.key === "r" || e.key === "R") && !e.ctrlKey && !e.metaKey) {
       e.preventDefault();
       FilesModule.loadFiles();
