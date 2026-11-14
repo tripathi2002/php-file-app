@@ -57,6 +57,7 @@ window.FilesModule = {
       ToastModule.show("Refreshed", "info");
     });
     document.getElementById("selectAllBtn")?.addEventListener("click", () => this.selectAllVisible());
+    document.getElementById("invertSelectBtn")?.addEventListener("click", () => this.invertSelection());
     document.getElementById("clearSelectBtn")?.addEventListener("click", () => this.clearSelection());
     document.getElementById("batchDeleteBtn")?.addEventListener("click", () => this.batchDelete());
     document.getElementById("batchZipBtn")?.addEventListener("click", () => this.batchZip());
@@ -345,6 +346,17 @@ window.FilesModule = {
 
   clearSelection() {
     this.selected.clear();
+    this.lastSelectedKey = null;
+    this.updateSelectionBar();
+    this.renderList();
+  },
+
+  invertSelection() {
+    const keys = this.visibleKeys();
+    keys.forEach((key) => {
+      if (this.selected.has(key)) this.selected.delete(key);
+      else this.selected.add(key);
+    });
     this.updateSelectionBar();
     this.renderList();
   },
