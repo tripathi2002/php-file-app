@@ -268,6 +268,13 @@ window.FilesModule = {
     bar.classList.toggle("danger", pct >= 95);
     const counts = `${this.folders.length} folders · ${this.files.length} files`;
     label.textContent = `${this.formatSize(limits.usedBytes)} / ${this.formatSize(limits.quotaBytes)} used · max file ${limits.maxUploadMB} MB · ${counts}`;
+    if (pct >= 95 && !this._quotaAlerted) {
+      this._quotaAlerted = true;
+      ToastModule.show("Storage almost full — free space soon", "error");
+    } else if (pct >= 80 && pct < 95 && !this._quotaWarned) {
+      this._quotaWarned = true;
+      ToastModule.show("Storage over 80% full", "info");
+    }
     this.refreshStats();
   },
 
@@ -490,6 +497,12 @@ window.FilesModule = {
     if (t === "audio") return mime.startsWith("audio/");
     if (t === "doc")
       return ["pdf", "txt", "csv", "json", "md", "doc", "docx", "xls", "xlsx", "ppt", "pptx"].includes(ext);
+    if (t === "today" || t === "week") {
+      const mtime = (file.mtime || 0) * 1000;
+      const age = Date.now() - mtime;
+      if (t === "today") return age <= 24 * 60 * 60 * 1000;
+      return age <= 7 * 24 * 60 * 60 * 1000;
+    }
     return true;
   },
 
@@ -497,7 +510,13 @@ window.FilesModule = {
     const q = this.query;
     let folders = this.folders.filter((f) => {
       if (this.filterType === "fav") return this.isFavorite(f.name, true);
-      if (this.filterType !== "all" && this.filterType !== "fav") return false;
+      if (this.filterType === "today" || this.filterType === "week") {
+        const age = Date.now() - (f.mtime || 0) * 1000;
+        if (this.filterType === "today" && age > 24 * 60 * 60 * 1000) return false;
+        if (this.filterType === "week" && age > 7 * 24 * 60 * 60 * 1000) return false;
+      } else if (this.filterType !== "all" && this.filterType !== "fav") {
+        return false;
+      }
       return !q || f.name.toLowerCase().includes(q);
     });
     let files = this.files.filter((f) => {
