@@ -45,6 +45,11 @@ storage/users/*
 storage/sessions/*
 !storage/sessions/.gitkeep
 
+storage/public/files/*
+!storage/public/files/.gitkeep
+storage/public/chunks/*
+!storage/public/chunks/.gitkeep
+
 # -----------------------------
 # Runtime (rate limit, throttle, auth tokens)
 # -----------------------------

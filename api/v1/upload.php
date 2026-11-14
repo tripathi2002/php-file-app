@@ -2,7 +2,8 @@
 $root = dirname(__DIR__, 2);
 require $root . '/config.php';
 
-app_require_auth();
+app_require_space();
+app_require_writable_space();
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     app_json(['error' => 'Method not allowed'], 405);
@@ -46,8 +47,13 @@ if (($file['size'] ?? 0) > $maxBytes) {
     ], 413);
 }
 
+$folder = app_sanitize_folder($_POST['folder'] ?? '');
+if (!app_folder_exists($folder)) {
+    app_json(['error' => 'Folder not found'], 404);
+}
+
 $quota = app_storage_quota_bytes();
-$used = app_dir_size(UPLOAD_DIR);
+$used = app_dir_size(app_upload_dir());
 if ($used + (int) ($file['size'] ?? 0) > $quota) {
     app_json([
         'error' => 'Storage quota exceeded',
@@ -56,8 +62,11 @@ if ($used + (int) ($file['size'] ?? 0) > $quota) {
     ], 413);
 }
 
-$targetPath = UPLOAD_DIR . $fileName;
-if (file_exists($targetPath)) {
+$destDir = app_folder_path($folder);
+app_ensure_dir($destDir, 0755);
+$targetPath = $destDir . $fileName;
+
+if (file_exists($targetPath) && empty($_POST['overwrite'])) {
     app_json(['error' => 'File already exists', 'file' => $fileName], 409);
 }
 
@@ -68,4 +77,6 @@ if (!move_uploaded_file($file['tmp_name'], $targetPath)) {
 app_json([
     'message' => 'File uploaded successfully',
     'file' => $fileName,
+    'folder' => $folder,
+    'space' => app_is_public_space() ? 'public' : 'personal',
 ]);

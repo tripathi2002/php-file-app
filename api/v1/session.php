@@ -13,7 +13,8 @@ if (in_array($method, ['POST', 'PUT', 'DELETE'], true)) {
 
 $action = $data['action'] ?? ($_GET['action'] ?? '');
 
-if ($method === 'GET' || $action === 'me') {
+// Session status (safe to call without a token)
+if ($method === 'GET' || ($method === 'POST' && $action === 'me')) {
     $token = app_get_bearer_token();
     $session = app_load_session($token);
     if ($session === null) {
@@ -33,6 +34,10 @@ if ($method === 'GET' || $action === 'me') {
 
 if ($method !== 'POST') {
     app_json(['error' => 'Method not allowed'], 405);
+}
+
+if ($action === '' || $action === null) {
+    app_json(['error' => 'Action required (enter, register, login, logout, me)'], 400);
 }
 
 if ($action === 'logout') {

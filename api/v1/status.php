@@ -2,7 +2,7 @@
 $root = dirname(__DIR__, 2);
 require $root . '/config.php';
 
-app_require_auth();
+app_require_space();
 
 $fileName = app_sanitize_filename($_GET['fileName'] ?? null);
 $uploadId = app_sanitize_upload_id($_GET['uploadId'] ?? null);

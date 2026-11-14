@@ -2,7 +2,8 @@
 $root = dirname(__DIR__, 2);
 require $root . '/config.php';
 
-app_require_auth();
+app_require_space();
+app_require_writable_space();
 
 if (!in_array($_SERVER['REQUEST_METHOD'] ?? '', ['PUT', 'POST'], true)) {
     app_json(['error' => 'Method not allowed'], 405);

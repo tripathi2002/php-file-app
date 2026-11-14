@@ -195,10 +195,94 @@ function app_tokens_dir(): string
     return __DIR__ . '/tokens';
 }
 
+function app_detect_space(?array $jsonBody = null): string
+{
+    $candidates = [
+        $_SERVER['HTTP_X_SPACE'] ?? null,
+        $_GET['space'] ?? null,
+        $_POST['space'] ?? null,
+        is_array($jsonBody) ? ($jsonBody['space'] ?? null) : null,
+    ];
+    foreach ($candidates as $c) {
+        if (!is_string($c)) {
+            continue;
+        }
+        $c = strtolower(trim($c));
+        if ($c === 'public' || $c === 'personal') {
+            return $c;
+        }
+    }
+    return 'personal';
+}
+
+function app_is_public_space(): bool
+{
+    return ($GLOBALS['APP_SPACE'] ?? 'personal') === 'public';
+}
+
+function app_set_space(string $space): void
+{
+    $space = $space === 'public' ? 'public' : 'personal';
+    $GLOBALS['APP_SPACE'] = $space;
+    $GLOBALS['APP_PUBLIC'] = $space === 'public';
+}
+
+function app_public_root(): string
+{
+    return STORAGE_ROOT . '/public';
+}
+
+function app_space_uid(): string
+{
+    if (app_is_public_space()) {
+        return 'public';
+    }
+    return app_current_user()['id'] ?? '';
+}
+
+function app_public_readonly(): bool
+{
+    $env = getenv('PUBLIC_READONLY');
+    if ($env === false || $env === '') {
+        return false;
+    }
+    return in_array(strtolower(trim((string) $env)), ['1', 'true', 'yes', 'on'], true);
+}
+
+/** Block mutating ops when public space is configured read-only. */
+function app_require_writable_space(): void
+{
+    if (app_is_public_space() && app_public_readonly()) {
+        app_json([
+            'error' => 'Public space is read-only',
+            'readOnly' => true,
+        ], 403);
+    }
+}
+
+/** Require public (open) or personal (mobile + PIN) space context. */
+function app_require_space(?array $jsonBody = null): void
+{
+    require_once __DIR__ . '/auth.php';
+    app_set_space(app_detect_space($jsonBody));
+
+    if (app_is_public_space()) {
+        app_set_current_user(null);
+        app_ensure_dir(app_public_root(), 0755);
+        app_ensure_dir(app_upload_dir(), 0755);
+        app_ensure_dir(app_chunk_dir(), 0755);
+        return;
+    }
+
+    app_require_auth();
+}
+
 /** Require a logged-in personal space (mobile + PIN session). */
 function app_require_auth(): void
 {
     require_once __DIR__ . '/auth.php';
+
+    app_set_space('personal');
 
     $token = app_get_bearer_token();
     $session = app_load_session($token);
@@ -225,6 +309,9 @@ function app_require_auth(): void
 
 function app_upload_dir(): string
 {
+    if (app_is_public_space()) {
+        return app_public_root() . '/files/';
+    }
     $user = app_current_user();
     if ($user === null) {
         return rtrim(UPLOAD_DIR, '/\\') . '/';
@@ -234,6 +321,9 @@ function app_upload_dir(): string
 
 function app_chunk_dir(): string
 {
+    if (app_is_public_space()) {
+        return app_public_root() . '/chunks/';
+    }
     $user = app_current_user();
     if ($user === null) {
         return rtrim(CHUNK_DIR, '/\\') . '/';
@@ -241,7 +331,7 @@ function app_chunk_dir(): string
     return app_user_dir($user['id']) . '/chunks/';
 }
 
-/** Sanitize a relative folder path like "photos/2024". Empty string = root. */
+/** Sanitize a relative folder path like "photos/2024". Empty string = root. Max 5 levels. */
 function app_sanitize_folder(?string $folder): string
 {
     if ($folder === null || trim($folder) === '' || $folder === '/' || $folder === '.') {
@@ -259,8 +349,23 @@ function app_sanitize_folder(?string $folder): string
             continue;
         }
         $parts[] = $safe;
+        if (count($parts) > 5) {
+            break;
+        }
+    }
+    if (count($parts) > 5) {
+        return implode('/', array_slice($parts, 0, 5));
     }
     return implode('/', $parts);
+}
+
+function app_folder_exists(string $folder): bool
+{
+    $folder = app_sanitize_folder($folder);
+    if ($folder === '') {
+        return true;
+    }
+    return is_dir(app_folder_path($folder));
 }
 
 function app_folder_path(string $folder = ''): string
@@ -352,14 +457,14 @@ function app_signed_download_url(string $fileName, bool $view = false, int $ttlS
 {
     $folder = app_sanitize_folder($folder);
     $rel = $folder === '' ? $fileName : $folder . '/' . $fileName;
-    $user = app_current_user();
-    $uid = $user['id'] ?? '';
+    $uid = app_space_uid();
     $expires = time() + $ttlSeconds;
     $sig = app_sign_download($rel, $expires, $view, $uid);
     $base = 'api/' . APP_API_VERSION . '/download.php';
     $query = http_build_query([
         'file' => $rel,
         'uid' => $uid,
+        'space' => app_is_public_space() ? 'public' : 'personal',
         'exp' => $expires,
         'sig' => $sig,
         'view' => $view ? '1' : '0',
@@ -377,4 +482,34 @@ function app_rate_limit_headers(int $limit, int $remaining, int $retryAfter = 0)
     if ($retryAfter > 0) {
         header('Retry-After: ' . $retryAfter);
     }
+}
+
+/** Recursively delete a directory/file that is inside the current upload root. */
+function app_delete_tree(string $path): bool
+{
+    $root = realpath(app_upload_dir());
+    $real = realpath($path);
+    if ($root === false || $real === false || $real === $root) {
+        return false;
+    }
+    $rootNorm = rtrim(str_replace('\\', '/', $root), '/');
+    $realNorm = rtrim(str_replace('\\', '/', $real), '/');
+    if ($realNorm === $rootNorm || !str_starts_with($realNorm, $rootNorm . '/')) {
+        return false;
+    }
+    if (is_file($real) || is_link($real)) {
+        return @unlink($real);
+    }
+    if (!is_dir($real)) {
+        return false;
+    }
+    foreach (scandir($real) ?: [] as $name) {
+        if ($name === '.' || $name === '..') {
+            continue;
+        }
+        if (!app_delete_tree($real . DIRECTORY_SEPARATOR . $name)) {
+            return false;
+        }
+    }
+    return @rmdir($real);
 }

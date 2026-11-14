@@ -38,6 +38,8 @@ RewriteRule ^ - [L]
     Require all denied
 </FilesMatch>
 
+# Deny library files by basename (applies in subfolders too).
+# Login API is api/v1/session.php — do NOT name it auth.php or it gets blocked.
 <FilesMatch "^(config|helpers|auth|rate-limit|throttle|generate-key|cleanup-chunks)\.php$">
     Require all denied
 </FilesMatch>

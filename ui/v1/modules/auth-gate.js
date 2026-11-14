@@ -10,19 +10,28 @@ window.AuthGate = {
     const pinInput = document.getElementById("loginPin");
     const submitBtn = document.getElementById("loginSubmit");
     const errorEl = document.getElementById("loginError");
+    const publicBtn = document.getElementById("enterPublicBtn");
+    const personalTab = document.getElementById("showPersonalBtn");
 
     form.addEventListener("submit", async (e) => {
       e.preventDefault();
       errorEl.textContent = "";
       submitBtn.disabled = true;
       try {
-        await this.enter(mobileInput.value, pinInput.value);
+        await this.enterPersonal(mobileInput.value, pinInput.value);
       } catch (err) {
         errorEl.textContent = err.message || "Could not enter";
       } finally {
         submitBtn.disabled = false;
       }
     });
+
+    if (publicBtn) {
+      publicBtn.addEventListener("click", () => this.enterPublic());
+    }
+    if (personalTab) {
+      personalTab.addEventListener("click", () => this.showPersonalForm());
+    }
   },
 
   show() {
@@ -38,11 +47,36 @@ window.AuthGate = {
     this.el.classList.remove("show");
     this.el.setAttribute("aria-hidden", "true");
     document.getElementById("appShell")?.classList.remove("blurred");
-    document.getElementById("fab")?.classList.remove("hide");
+    const fab = document.getElementById("fab");
+    if (fab && !Api.readOnly) fab.classList.remove("hide");
   },
 
-  async enter(mobile, pin) {
-    const res = await fetch(API_BASE + "/auth.php", {
+  showPersonalForm() {
+    document.getElementById("gateChoices")?.classList.add("hide");
+    document.getElementById("personalFormWrap")?.classList.remove("hide");
+    document.getElementById("loginMobile")?.focus();
+  },
+
+  showChoices() {
+    document.getElementById("gateChoices")?.classList.remove("hide");
+    document.getElementById("personalFormWrap")?.classList.add("hide");
+    document.getElementById("loginError").textContent = "";
+  },
+
+  enterPublic() {
+    Api.setSpace("public");
+    // Keep personal session so the Personal tab can switch back without re-login.
+    Api.currentFolder = localStorage.getItem("fileAppLastFolder:public") || "";
+    ToastModule.show("Public space — no login needed", "info");
+    this.hide();
+    this.onReady();
+    this.updateSpaceUi();
+  },
+
+  async enterPersonal(mobile, pin) {
+    Api.setSpace("personal");
+    Api.currentFolder = localStorage.getItem("fileAppLastFolder:personal") || "";
+    const res = await fetch(API_BASE + "/session.php", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action: "enter", mobile, pin }),
@@ -50,8 +84,7 @@ window.AuthGate = {
     const data = await res.json().catch(() => ({}));
 
     if (res.status === 404 && data.needsRegister) {
-      // First time — create space with same mobile + PIN
-      const create = await fetch(API_BASE + "/auth.php", {
+      const create = await fetch(API_BASE + "/session.php", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "register", mobile, pin }),
@@ -65,6 +98,7 @@ window.AuthGate = {
       ToastModule.show("Personal space created", "success");
       this.hide();
       this.onReady();
+      this.updateSpaceUi();
       return;
     }
 
@@ -77,58 +111,92 @@ window.AuthGate = {
     ToastModule.show(data.message || "Welcome", "success");
     this.hide();
     this.onReady();
+    this.updateSpaceUi();
   },
 
   async logout() {
-    try {
-      await Api.request("/auth.php", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "logout" }),
-      });
-    } catch (e) {
-      // still clear local session
+    if (Api.space === "personal") {
+      try {
+        await Api.request("/session.php", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "logout" }),
+        });
+      } catch (e) {
+        // still clear local session
+      }
     }
     Api.clearSession();
-    ToastModule.show("Left personal space", "info");
+    Api.space = "";
+    localStorage.removeItem("fileAppSpace");
+    ToastModule.show("Left space", "info");
+    this.showChoices();
     this.prompt();
   },
 
   async check() {
-    if (!Api.getAccessKey()) {
-      this.prompt();
-      return false;
+    // Restore last space if any
+    if (Api.space === "public") {
+      this.hide();
+      return true;
     }
-    try {
-      const me = await Api.request("/auth.php?action=me");
-      if (!me.authenticated) {
+    if (Api.space === "personal" && Api.getAccessKey()) {
+      try {
+        const me = await Api.request("/session.php?action=me");
+        if (!me.authenticated) {
+          Api.clearSession();
+          this.showChoices();
+          this.prompt();
+          return false;
+        }
+        Api.mobileMasked = me.mobileMasked || "";
+        this.hide();
+        return true;
+      } catch (e) {
         Api.clearSession();
+        this.showChoices();
         this.prompt();
         return false;
       }
-      Api.mobileMasked = me.mobileMasked || "";
-      this.hide();
-      return true;
-    } catch (e) {
-      Api.clearSession();
-      this.prompt();
-      return false;
     }
+    this.showChoices();
+    this.prompt();
+    return false;
   },
 
   prompt() {
     this.show();
-    const mobile = document.getElementById("loginMobile");
-    if (mobile) setTimeout(() => mobile.focus(), 50);
   },
 
-  openSettings() {
-    // Account menu: logout is the main action users need
+  async openSettings() {
+    let statsLine = "";
+    try {
+      const s = await Api.request("/stats.php");
+      statsLine = `\n\n${s.files} files · ${s.folders} folders · ${s.usedHuman}`;
+    } catch (e) {}
+
+    if (Api.space === "public") {
+      ModalModule.show({
+        title: "Public space",
+        message:
+          (Api.readOnly
+            ? "Read-only public space."
+            : "Anyone can see and change files here.") +
+          " Switch to a personal space for private files." +
+          statsLine,
+        confirmText: "Leave public",
+        cancelText: "Stay",
+        danger: true,
+        onConfirm: () => this.logout(),
+      });
+      return;
+    }
     ModalModule.show({
       title: "Personal space",
-      message: Api.mobileMasked
-        ? `Signed in as ${Api.mobileMasked}`
-        : "You are in your private space.",
+      message:
+        (Api.mobileMasked
+          ? `Signed in as ${Api.mobileMasked}`
+          : "You are in your private space.") + statsLine,
       confirmText: "Leave / Logout",
       cancelText: "Stay",
       danger: true,
@@ -136,10 +204,49 @@ window.AuthGate = {
     });
   },
 
+  updateSpaceUi() {
+    const label = document.getElementById("accountLabel");
+    const title = document.getElementById("spaceTitle");
+    const publicTab = document.getElementById("tabPublic");
+    const personalTab = document.getElementById("tabPersonal");
+    if (Api.space === "public") {
+      if (label) label.textContent = "Public";
+      if (title) title.textContent = "Public files";
+      publicTab?.classList.add("active");
+      personalTab?.classList.remove("active");
+    } else {
+      if (label) label.textContent = Api.mobileMasked || "Account";
+      if (title) title.textContent = "My files";
+      personalTab?.classList.add("active");
+      publicTab?.classList.remove("active");
+    }
+  },
+
+  switchToPublic() {
+    Api.setSpace("public");
+    Api.currentFolder = localStorage.getItem("fileAppLastFolder:public") || "";
+    this.hide();
+    this.onReady();
+    this.updateSpaceUi();
+  },
+
+  switchToPersonal() {
+    if (Api.getAccessKey()) {
+      Api.setSpace("personal");
+      Api.currentFolder = localStorage.getItem("fileAppLastFolder:personal") || "";
+      this.hide();
+      this.onReady();
+      this.updateSpaceUi();
+      return;
+    }
+    Api.setSpace("personal");
+    this.showPersonalForm();
+    this.prompt();
+  },
+
   onReady() {
     FilesModule.loadFiles();
     HealthBanner.check();
-    const label = document.getElementById("accountLabel");
-    if (label) label.textContent = Api.mobileMasked || "Account";
+    this.updateSpaceUi();
   },
 };

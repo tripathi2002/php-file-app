@@ -2,7 +2,8 @@
 $root = dirname(__DIR__, 2);
 require $root . '/config.php';
 
-app_require_auth();
+app_require_space();
+app_require_writable_space();
 
 if ($_SERVER['REQUEST_METHOD'] !== 'DELETE') {
     app_json(['error' => 'Method not allowed'], 405);
@@ -23,14 +24,19 @@ if ($isFolder) {
     if (!is_dir($path)) {
         app_json(['error' => 'Folder not found'], 404);
     }
+    $recursive = !empty($data['recursive']);
     $items = array_diff(scandir($path) ?: [], ['.', '..', '.gitkeep', '.htaccess']);
-    if (count($items) > 0) {
-        app_json(['error' => 'Folder is not empty'], 409);
+    if (count($items) > 0 && !$recursive) {
+        app_json(['error' => 'Folder is not empty', 'hint' => 'Pass recursive:true to delete contents'], 409);
     }
-    if (!@rmdir($path)) {
+    if ($recursive) {
+        if (!app_delete_tree($path)) {
+            app_json(['error' => 'Delete failed'], 500);
+        }
+    } elseif (!@rmdir($path)) {
         app_json(['error' => 'Delete failed'], 500);
     }
-    app_json(['message' => 'Folder deleted', 'name' => $fileName]);
+    app_json(['message' => 'Folder deleted', 'name' => $fileName, 'recursive' => $recursive]);
 }
 
 if (!is_file($path)) {

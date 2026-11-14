@@ -4,7 +4,8 @@ require $root . '/config.php';
 require $root . '/rate-limit.php';
 require $root . '/throttle.php';
 
-app_require_auth();
+app_require_space();
+app_require_writable_space();
 applyThrottle(500);
 checkRateLimit(2, 1);
 
@@ -40,6 +41,10 @@ if (is_file($metaFile)) {
     if (is_array($meta) && isset($meta['folder'])) {
         $folder = app_sanitize_folder($meta['folder']);
     }
+}
+
+if ($folder !== '' && !app_folder_exists($folder)) {
+    app_json(['error' => 'Folder not found'], 404);
 }
 
 app_ensure_dir(app_folder_path($folder), 0755);

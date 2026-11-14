@@ -2,7 +2,8 @@
 $root = dirname(__DIR__, 2);
 require $root . '/config.php';
 
-app_require_auth();
+app_require_space();
+app_require_writable_space();
 
 $data = json_decode(file_get_contents('php://input'), true) ?? [];
 $fileName = app_sanitize_filename($data['fileName'] ?? null);

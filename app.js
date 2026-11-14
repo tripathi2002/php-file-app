@@ -6,6 +6,7 @@ window.Api = {
   allowedExtensions: null,
   currentFolder: "",
   mobileMasked: "",
+  space: localStorage.getItem("fileAppSpace") || "",
 
   getAccessKey() {
     return (
@@ -25,6 +26,12 @@ window.Api = {
     }
   },
 
+  setSpace(space) {
+    this.space = space === "public" ? "public" : "personal";
+    localStorage.setItem("fileAppSpace", this.space);
+    this.currentFolder = "";
+  },
+
   clearSession() {
     this.setAccessKey("");
     this.mobileMasked = "";
@@ -38,7 +45,16 @@ window.Api = {
       headers.Authorization = `Bearer ${key}`;
       headers["X-Access-Key"] = key;
     }
+    if (this.space) {
+      headers["X-Space"] = this.space;
+    }
     return headers;
+  },
+
+  withSpace(path) {
+    if (!this.space) return path;
+    const join = path.includes("?") ? "&" : "?";
+    return `${path}${join}space=${encodeURIComponent(this.space)}`;
   },
 
   absoluteUrl(path) {
@@ -51,7 +67,10 @@ window.Api = {
 
   async request(path, options = {}) {
     const headers = this.authHeaders(options.headers || {});
-    const res = await fetch(API_BASE + path, { ...options, headers });
+    const res = await fetch(API_BASE + this.withSpace(path), {
+      ...options,
+      headers,
+    });
 
     let data = null;
     const text = await res.text();
@@ -151,6 +170,7 @@ window.ModalModule = {
       message = "",
       input = false,
       inputValue = "",
+      html = "",
       confirmText = "Confirm",
       cancelText = "Cancel",
       danger = false,
@@ -164,7 +184,20 @@ window.ModalModule = {
     this.previousFocus = document.activeElement;
 
     modal.querySelector("#modalTitle").textContent = title;
-    modal.querySelector("#modalMessage").textContent = message;
+    const msgEl = modal.querySelector("#modalMessage");
+    if (html) {
+      msgEl.innerHTML = "";
+      if (message) {
+        const p = document.createElement("p");
+        p.textContent = message;
+        msgEl.appendChild(p);
+      }
+      const wrap = document.createElement("div");
+      wrap.innerHTML = html;
+      msgEl.appendChild(wrap);
+    } else {
+      msgEl.textContent = message;
+    }
 
     const inputBox = modal.querySelector("#modalInput");
     const inputLabel = modal.querySelector("#modalInputLabel");
@@ -240,6 +273,404 @@ window.ModalModule = {
 };
 
 
+/* ===== modules\theme.js ===== */
+window.ThemeModule = {
+  KEY: "fileAppTheme",
+
+  init() {
+    const saved = localStorage.getItem(this.KEY) || "system";
+    this.apply(saved);
+    const btn = document.getElementById("themeBtn");
+    if (btn) btn.addEventListener("click", () => this.cycle());
+    if (window.matchMedia) {
+      window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
+        if ((localStorage.getItem(this.KEY) || "system") === "system") {
+          this.apply("system");
+        }
+      });
+    }
+  },
+
+  current() {
+    return localStorage.getItem(this.KEY) || "system";
+  },
+
+  resolved() {
+    const mode = this.current();
+    if (mode === "light" || mode === "dark") return mode;
+    return window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches
+      ? "dark"
+      : "light";
+  },
+
+  apply(mode) {
+    localStorage.setItem(this.KEY, mode);
+    const resolved = mode === "system"
+      ? (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches
+          ? "dark"
+          : "light")
+      : mode;
+    document.documentElement.setAttribute("data-theme", resolved);
+    const btn = document.getElementById("themeBtn");
+    if (btn) {
+      btn.textContent = resolved === "dark" ? "Light" : "Dark";
+      btn.setAttribute("aria-label", `Switch to ${resolved === "dark" ? "light" : "dark"} theme`);
+    }
+  },
+
+  cycle() {
+    const order = ["system", "light", "dark"];
+    const cur = this.current();
+    const next = order[(order.indexOf(cur) + 1) % order.length];
+    this.apply(next);
+    ToastModule.show(
+      next === "system" ? "Theme: system" : `Theme: ${next}`,
+      "info"
+    );
+  },
+};
+
+
+/* ===== modules\preview.js ===== */
+window.PreviewModule = {
+  el: null,
+  body: null,
+
+  init() {
+    if (document.getElementById("previewOverlay")) return;
+    const overlay = document.createElement("div");
+    overlay.id = "previewOverlay";
+    overlay.className = "preview-overlay";
+    overlay.setAttribute("role", "dialog");
+    overlay.setAttribute("aria-modal", "true");
+    overlay.setAttribute("aria-label", "File preview");
+    overlay.innerHTML = `
+      <div class="preview-sheet" id="previewSheet">
+        <header class="preview-header">
+          <strong id="previewTitle">Preview</strong>
+          <div class="preview-actions">
+            <a id="previewOpen" class="btn view" target="_blank" rel="noopener noreferrer">Open</a>
+            <button type="button" id="previewClose" class="btn cancel">Close</button>
+          </div>
+        </header>
+        <div class="preview-body" id="previewBody"></div>
+      </div>`;
+    document.body.appendChild(overlay);
+    this.el = overlay;
+    this.body = document.getElementById("previewBody");
+    overlay.addEventListener("click", (e) => {
+      if (e.target === overlay) this.close();
+    });
+    document.getElementById("previewClose").addEventListener("click", () => this.close());
+    document.getElementById("previewSheet").addEventListener("click", (e) => e.stopPropagation());
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && this.el.classList.contains("show")) this.close();
+    });
+  },
+
+  open(file) {
+    this.init();
+    const title = document.getElementById("previewTitle");
+    const openBtn = document.getElementById("previewOpen");
+    const url = Api.absoluteUrl(file.viewUrl || file.downloadUrl);
+    title.textContent = file.name || "Preview";
+    openBtn.href = url;
+    this.body.innerHTML = "";
+
+    const mime = file.mime || "";
+    const ext = (file.ext || "").toLowerCase();
+
+    if (mime.startsWith("image/") || ["jpg", "jpeg", "png", "gif", "webp", "ico"].includes(ext)) {
+      const img = document.createElement("img");
+      img.src = url;
+      img.alt = file.name || "";
+      img.className = "preview-media";
+      this.body.appendChild(img);
+    } else if (mime.startsWith("video/") || ["mp4", "webm"].includes(ext)) {
+      const video = document.createElement("video");
+      video.src = url;
+      video.controls = true;
+      video.className = "preview-media";
+      this.body.appendChild(video);
+    } else if (mime.startsWith("audio/") || ["mp3", "wav", "ogg", "m4a"].includes(ext)) {
+      const audio = document.createElement("audio");
+      audio.src = url;
+      audio.controls = true;
+      audio.className = "preview-audio";
+      this.body.appendChild(audio);
+    } else if (ext === "pdf" || mime === "application/pdf") {
+      const iframe = document.createElement("iframe");
+      iframe.src = url;
+      iframe.title = file.name || "PDF";
+      iframe.className = "preview-frame";
+      this.body.appendChild(iframe);
+    } else if (["txt", "md", "csv", "json"].includes(ext) || mime.startsWith("text/")) {
+      const wrap = document.createElement("div");
+      wrap.className = "preview-editor-wrap";
+      const ta = document.createElement("textarea");
+      ta.className = "preview-text preview-editor";
+      ta.value = "Loading…";
+      ta.readOnly = !!Api.readOnly || !["txt", "md", "csv", "json"].includes(ext);
+      wrap.appendChild(ta);
+      if (!ta.readOnly) {
+        const save = document.createElement("button");
+        save.type = "button";
+        save.className = "btn confirm";
+        save.textContent = "Save";
+        save.addEventListener("click", async () => {
+          try {
+            await Api.request("/write.php", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                folder: file.folder || Api.currentFolder || "",
+                name: file.name,
+                content: ta.value,
+                overwrite: true,
+              }),
+            });
+            ToastModule.show("Saved", "success");
+            ActivityModule.log?.("Edited", file.name);
+            FilesModule.loadFiles?.();
+          } catch (err) {
+            ToastModule.show(err.message || "Save failed", "error");
+          }
+        });
+        wrap.appendChild(save);
+      }
+      this.body.appendChild(wrap);
+      fetch(url)
+        .then((r) => r.text())
+        .then((t) => {
+          ta.value = t.slice(0, 512000);
+        })
+        .catch(() => {
+          ta.value = "Could not load preview.";
+        });
+    } else {
+      const p = document.createElement("p");
+      p.className = "preview-fallback";
+      p.textContent = "No inline preview for this type. Use Open or Download.";
+      this.body.appendChild(p);
+    }
+
+    this.el.classList.add("show");
+    document.body.classList.add("modal-open");
+    RecentModule.remember?.(file);
+    ActivityModule.log?.("Opened", file.name);
+  },
+
+  close() {
+    if (!this.el) return;
+    this.el.classList.remove("show");
+    if (this.body) this.body.innerHTML = "";
+    document.body.classList.remove("modal-open");
+  },
+};
+
+
+/* ===== modules\activity.js ===== */
+window.ActivityModule = {
+  KEY: "fileAppActivity",
+  MAX: 40,
+
+  log(action, detail = "") {
+    const entry = {
+      t: Date.now(),
+      space: Api.space || "",
+      action,
+      detail: String(detail || "").slice(0, 120),
+    };
+    const list = this.all();
+    list.unshift(entry);
+    localStorage.setItem(this.KEY, JSON.stringify(list.slice(0, this.MAX)));
+    this.render();
+  },
+
+  all() {
+    try {
+      return JSON.parse(localStorage.getItem(this.KEY) || "[]");
+    } catch (e) {
+      return [];
+    }
+  },
+
+  clear() {
+    localStorage.removeItem(this.KEY);
+    this.render();
+  },
+
+  render() {
+    const el = document.getElementById("activityList");
+    if (!el) return;
+    const items = this.all().filter((x) => !Api.space || x.space === Api.space).slice(0, 8);
+    el.innerHTML = "";
+    if (!items.length) {
+      el.innerHTML = '<li class="activity-empty">No recent activity on this device</li>';
+      return;
+    }
+    items.forEach((item) => {
+      const li = document.createElement("li");
+      const when = new Date(item.t).toLocaleString();
+      li.textContent = `${item.action}${item.detail ? ": " + item.detail : ""} · ${when}`;
+      el.appendChild(li);
+    });
+  },
+
+  init() {
+    document.getElementById("clearActivityBtn")?.addEventListener("click", () => {
+      this.clear();
+      ToastModule.show("Activity cleared", "info");
+    });
+    this.render();
+  },
+};
+
+
+/* ===== modules\recent.js ===== */
+window.RecentModule = {
+  KEY: "fileAppRecent",
+  MAX: 12,
+
+  remember(file) {
+    if (!file?.name) return;
+    const entry = {
+      name: file.name,
+      folder: file.folder || Api.currentFolder || "",
+      space: Api.space || "personal",
+      mime: file.mime || "",
+      ext: file.ext || "",
+      viewUrl: file.viewUrl || "",
+      downloadUrl: file.downloadUrl || "",
+      t: Date.now(),
+    };
+    let list = this.all().filter(
+      (x) => !(x.space === entry.space && x.folder === entry.folder && x.name === entry.name)
+    );
+    list.unshift(entry);
+    localStorage.setItem(this.KEY, JSON.stringify(list.slice(0, this.MAX)));
+    this.render();
+  },
+
+  all() {
+    try {
+      return JSON.parse(localStorage.getItem(this.KEY) || "[]");
+    } catch (e) {
+      return [];
+    }
+  },
+
+  render() {
+    const el = document.getElementById("recentStrip");
+    if (!el) return;
+    const items = this.all().filter((x) => x.space === (Api.space || "personal")).slice(0, 8);
+    el.innerHTML = "";
+    if (!items.length) {
+      el.hidden = true;
+      return;
+    }
+    el.hidden = false;
+    items.forEach((item) => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "recent-chip";
+      btn.textContent = item.name;
+      btn.title = (item.folder ? item.folder + "/" : "") + item.name;
+      btn.addEventListener("click", () => {
+        if ((item.folder || "") !== (Api.currentFolder || "")) {
+          Api.currentFolder = item.folder || "";
+          FilesModule.loadFiles().then(() => {
+            const match = (FilesModule.files || []).find((f) => f.name === item.name);
+            if (match) PreviewModule.open(match);
+            else ToastModule.show("File not found here anymore", "error");
+          });
+        } else {
+          const match = (FilesModule.files || []).find((f) => f.name === item.name);
+          if (match) PreviewModule.open(match);
+          else ToastModule.show("File not found here anymore", "error");
+        }
+      });
+      el.appendChild(btn);
+    });
+  },
+
+  init() {
+    this.render();
+  },
+};
+
+
+/* ===== modules\offline.js ===== */
+window.OfflineModule = {
+  init() {
+    const banner = document.getElementById("offlineBanner");
+    if (!banner) return;
+    const sync = () => {
+      const offline = !navigator.onLine;
+      banner.hidden = !offline;
+      if (offline) ToastModule.show("You are offline", "error");
+    };
+    window.addEventListener("online", () => {
+      banner.hidden = true;
+      ToastModule.show("Back online", "success");
+      if (Api.space) FilesModule.loadFiles();
+    });
+    window.addEventListener("offline", sync);
+    sync();
+  },
+};
+
+
+/* ===== modules\paste-upload.js ===== */
+window.PasteUploadModule = {
+  init() {
+    document.addEventListener("paste", (e) => this.onPaste(e));
+    const listCard = document.querySelector(".file-list");
+    if (!listCard) return;
+
+    ["dragenter", "dragover", "dragleave", "drop"].forEach((name) => {
+      listCard.addEventListener(name, (ev) => {
+        ev.preventDefault();
+        ev.stopPropagation();
+      });
+    });
+    listCard.addEventListener("dragover", () => listCard.classList.add("drop-target"));
+    listCard.addEventListener("dragleave", () => listCard.classList.remove("drop-target"));
+    listCard.addEventListener("drop", (e) => {
+      listCard.classList.remove("drop-target");
+      if (Api.readOnly || !canUseCurrentSpace()) return;
+      const files = Array.from(e.dataTransfer.files || []);
+      if (!files.length) return;
+      openUpload();
+      UploadModule.handleFiles(files);
+    });
+  },
+
+  onPaste(e) {
+    if (document.getElementById("loginGate")?.classList.contains("show")) return;
+    if (Api.readOnly || !canUseCurrentSpace()) return;
+    const items = Array.from(e.clipboardData?.items || []);
+    const files = [];
+    items.forEach((item, i) => {
+      if (item.kind !== "file") return;
+      const file = item.getAsFile();
+      if (!file) return;
+      if (!file.name || file.name === "image.png") {
+        const ext = (file.type.split("/")[1] || "png").replace("jpeg", "jpg");
+        files.push(new File([file], `paste-${Date.now()}-${i}.${ext}`, { type: file.type }));
+      } else {
+        files.push(file);
+      }
+    });
+    if (!files.length) return;
+    e.preventDefault();
+    openUpload();
+    UploadModule.handleFiles(files);
+    ToastModule.show(`Pasted ${files.length} file(s)`, "info");
+  },
+};
+
+
 /* ===== modules\auth-gate.js ===== */
 window.AuthGate = {
   el: null,
@@ -253,19 +684,28 @@ window.AuthGate = {
     const pinInput = document.getElementById("loginPin");
     const submitBtn = document.getElementById("loginSubmit");
     const errorEl = document.getElementById("loginError");
+    const publicBtn = document.getElementById("enterPublicBtn");
+    const personalTab = document.getElementById("showPersonalBtn");
 
     form.addEventListener("submit", async (e) => {
       e.preventDefault();
       errorEl.textContent = "";
       submitBtn.disabled = true;
       try {
-        await this.enter(mobileInput.value, pinInput.value);
+        await this.enterPersonal(mobileInput.value, pinInput.value);
       } catch (err) {
         errorEl.textContent = err.message || "Could not enter";
       } finally {
         submitBtn.disabled = false;
       }
     });
+
+    if (publicBtn) {
+      publicBtn.addEventListener("click", () => this.enterPublic());
+    }
+    if (personalTab) {
+      personalTab.addEventListener("click", () => this.showPersonalForm());
+    }
   },
 
   show() {
@@ -281,11 +721,36 @@ window.AuthGate = {
     this.el.classList.remove("show");
     this.el.setAttribute("aria-hidden", "true");
     document.getElementById("appShell")?.classList.remove("blurred");
-    document.getElementById("fab")?.classList.remove("hide");
+    const fab = document.getElementById("fab");
+    if (fab && !Api.readOnly) fab.classList.remove("hide");
   },
 
-  async enter(mobile, pin) {
-    const res = await fetch(API_BASE + "/auth.php", {
+  showPersonalForm() {
+    document.getElementById("gateChoices")?.classList.add("hide");
+    document.getElementById("personalFormWrap")?.classList.remove("hide");
+    document.getElementById("loginMobile")?.focus();
+  },
+
+  showChoices() {
+    document.getElementById("gateChoices")?.classList.remove("hide");
+    document.getElementById("personalFormWrap")?.classList.add("hide");
+    document.getElementById("loginError").textContent = "";
+  },
+
+  enterPublic() {
+    Api.setSpace("public");
+    // Keep personal session so the Personal tab can switch back without re-login.
+    Api.currentFolder = localStorage.getItem("fileAppLastFolder:public") || "";
+    ToastModule.show("Public space — no login needed", "info");
+    this.hide();
+    this.onReady();
+    this.updateSpaceUi();
+  },
+
+  async enterPersonal(mobile, pin) {
+    Api.setSpace("personal");
+    Api.currentFolder = localStorage.getItem("fileAppLastFolder:personal") || "";
+    const res = await fetch(API_BASE + "/session.php", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action: "enter", mobile, pin }),
@@ -293,8 +758,7 @@ window.AuthGate = {
     const data = await res.json().catch(() => ({}));
 
     if (res.status === 404 && data.needsRegister) {
-      // First time — create space with same mobile + PIN
-      const create = await fetch(API_BASE + "/auth.php", {
+      const create = await fetch(API_BASE + "/session.php", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "register", mobile, pin }),
@@ -308,6 +772,7 @@ window.AuthGate = {
       ToastModule.show("Personal space created", "success");
       this.hide();
       this.onReady();
+      this.updateSpaceUi();
       return;
     }
 
@@ -320,58 +785,92 @@ window.AuthGate = {
     ToastModule.show(data.message || "Welcome", "success");
     this.hide();
     this.onReady();
+    this.updateSpaceUi();
   },
 
   async logout() {
-    try {
-      await Api.request("/auth.php", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "logout" }),
-      });
-    } catch (e) {
-      // still clear local session
+    if (Api.space === "personal") {
+      try {
+        await Api.request("/session.php", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "logout" }),
+        });
+      } catch (e) {
+        // still clear local session
+      }
     }
     Api.clearSession();
-    ToastModule.show("Left personal space", "info");
+    Api.space = "";
+    localStorage.removeItem("fileAppSpace");
+    ToastModule.show("Left space", "info");
+    this.showChoices();
     this.prompt();
   },
 
   async check() {
-    if (!Api.getAccessKey()) {
-      this.prompt();
-      return false;
+    // Restore last space if any
+    if (Api.space === "public") {
+      this.hide();
+      return true;
     }
-    try {
-      const me = await Api.request("/auth.php?action=me");
-      if (!me.authenticated) {
+    if (Api.space === "personal" && Api.getAccessKey()) {
+      try {
+        const me = await Api.request("/session.php?action=me");
+        if (!me.authenticated) {
+          Api.clearSession();
+          this.showChoices();
+          this.prompt();
+          return false;
+        }
+        Api.mobileMasked = me.mobileMasked || "";
+        this.hide();
+        return true;
+      } catch (e) {
         Api.clearSession();
+        this.showChoices();
         this.prompt();
         return false;
       }
-      Api.mobileMasked = me.mobileMasked || "";
-      this.hide();
-      return true;
-    } catch (e) {
-      Api.clearSession();
-      this.prompt();
-      return false;
     }
+    this.showChoices();
+    this.prompt();
+    return false;
   },
 
   prompt() {
     this.show();
-    const mobile = document.getElementById("loginMobile");
-    if (mobile) setTimeout(() => mobile.focus(), 50);
   },
 
-  openSettings() {
-    // Account menu: logout is the main action users need
+  async openSettings() {
+    let statsLine = "";
+    try {
+      const s = await Api.request("/stats.php");
+      statsLine = `\n\n${s.files} files · ${s.folders} folders · ${s.usedHuman}`;
+    } catch (e) {}
+
+    if (Api.space === "public") {
+      ModalModule.show({
+        title: "Public space",
+        message:
+          (Api.readOnly
+            ? "Read-only public space."
+            : "Anyone can see and change files here.") +
+          " Switch to a personal space for private files." +
+          statsLine,
+        confirmText: "Leave public",
+        cancelText: "Stay",
+        danger: true,
+        onConfirm: () => this.logout(),
+      });
+      return;
+    }
     ModalModule.show({
       title: "Personal space",
-      message: Api.mobileMasked
-        ? `Signed in as ${Api.mobileMasked}`
-        : "You are in your private space.",
+      message:
+        (Api.mobileMasked
+          ? `Signed in as ${Api.mobileMasked}`
+          : "You are in your private space.") + statsLine,
       confirmText: "Leave / Logout",
       cancelText: "Stay",
       danger: true,
@@ -379,11 +878,50 @@ window.AuthGate = {
     });
   },
 
+  updateSpaceUi() {
+    const label = document.getElementById("accountLabel");
+    const title = document.getElementById("spaceTitle");
+    const publicTab = document.getElementById("tabPublic");
+    const personalTab = document.getElementById("tabPersonal");
+    if (Api.space === "public") {
+      if (label) label.textContent = "Public";
+      if (title) title.textContent = "Public files";
+      publicTab?.classList.add("active");
+      personalTab?.classList.remove("active");
+    } else {
+      if (label) label.textContent = Api.mobileMasked || "Account";
+      if (title) title.textContent = "My files";
+      personalTab?.classList.add("active");
+      publicTab?.classList.remove("active");
+    }
+  },
+
+  switchToPublic() {
+    Api.setSpace("public");
+    Api.currentFolder = localStorage.getItem("fileAppLastFolder:public") || "";
+    this.hide();
+    this.onReady();
+    this.updateSpaceUi();
+  },
+
+  switchToPersonal() {
+    if (Api.getAccessKey()) {
+      Api.setSpace("personal");
+      Api.currentFolder = localStorage.getItem("fileAppLastFolder:personal") || "";
+      this.hide();
+      this.onReady();
+      this.updateSpaceUi();
+      return;
+    }
+    Api.setSpace("personal");
+    this.showPersonalForm();
+    this.prompt();
+  },
+
   onReady() {
     FilesModule.loadFiles();
     HealthBanner.check();
-    const label = document.getElementById("accountLabel");
-    if (label) label.textContent = Api.mobileMasked || "Account";
+    this.updateSpaceUi();
   },
 };
 
@@ -444,10 +982,36 @@ window.UploadModule = {
   totalChunks: 0,
   fileRef: null,
   uploadId: null,
+  queue: [],
   chunkSize: 5 * 1024 * 1024,
 
   init() {
     this.syncControls();
+  },
+
+  handleFiles(files) {
+    const list = Array.from(files || []).filter(Boolean);
+    if (!list.length) return;
+    this.queue = list.slice(1);
+    this.renderQueue();
+    this.handleFile(list[0]);
+  },
+
+  renderQueue() {
+    const el = document.getElementById("uploadQueue");
+    if (!el) return;
+    if (!this.queue.length) {
+      el.hidden = true;
+      el.innerHTML = "";
+      return;
+    }
+    el.hidden = false;
+    el.innerHTML = "";
+    this.queue.forEach((f, i) => {
+      const li = document.createElement("li");
+      li.textContent = `${i + 1}. ${f.name}`;
+      el.appendChild(li);
+    });
   },
 
   newUploadId() {
@@ -582,6 +1146,7 @@ window.UploadModule = {
       formData.append("uploadId", this.uploadId);
       formData.append("fileSize", String(file.size));
       formData.append("folder", Api.currentFolder || "");
+      formData.append("space", Api.space || "personal");
 
       try {
         const data = await this.uploadChunk(formData);
@@ -626,6 +1191,7 @@ window.UploadModule = {
           totalChunks: this.totalChunks,
           uploadId: this.uploadId,
           folder: Api.currentFolder || "",
+          space: Api.space || "personal",
         }),
       });
     } catch (error) {
@@ -641,6 +1207,7 @@ window.UploadModule = {
                 totalChunks: this.totalChunks,
                 uploadId: this.uploadId,
                 folder: Api.currentFolder || "",
+                space: Api.space || "personal",
                 overwrite: true,
               }),
             });
@@ -668,9 +1235,18 @@ window.UploadModule = {
 
     status.innerText = "Upload Complete";
     ToastModule.show("Upload complete", "success");
+    ActivityModule.log?.("Uploaded", file.name);
     this.isUploading = false;
-    this.reset();
     FilesModule && FilesModule.loadFiles();
+    if (this.queue.length) {
+      const next = this.queue.shift();
+      this.renderQueue();
+      this.reset(false);
+      this.handleFile(next);
+      this.start();
+      return;
+    }
+    this.reset();
   },
 
   async uploadChunk(formData) {
@@ -744,21 +1320,25 @@ window.UploadModule = {
     this.reset();
   },
 
-  reset() {
+  reset(clearQueue = true) {
     this.fileRef = null;
     this.currentChunk = 0;
     this.uploadId = null;
     this.isCancelled = false;
     this.isPaused = false;
     this.isUploading = false;
+    if (clearQueue) {
+      this.queue = [];
+      this.renderQueue();
+    }
 
     const input = document.getElementById("fileInput");
     if (input) input.value = "";
     document.getElementById("progressBar").style.width = "0%";
     document.getElementById("status").innerText = "";
     document.getElementById("dropContent").innerHTML = `
-            <p>Tap or Drag file</p>
-            <p>Click to select</p>
+            <p>Tap or Drag files</p>
+            <p>Click to select (multiple OK)</p>
         `;
     this.syncControls();
   },
@@ -767,12 +1347,135 @@ window.UploadModule = {
 
 /* ===== modules\files.js ===== */
 window.FilesModule = {
+  folders: [],
+  files: [],
+  selected: new Set(),
+  sortKey: localStorage.getItem("fileAppSort") || "newest",
+  filterType: "all",
+  query: "",
+  viewMode: localStorage.getItem("fileAppView") || "list",
+  favoritesKey: "fileAppFavorites",
+
   init() {
     document.addEventListener("click", () => {
       document
         .querySelectorAll(".dropdown-menu.show")
         .forEach((menu) => menu.classList.remove("show"));
     });
+
+    const search = document.getElementById("fileSearch");
+    if (search) {
+      search.addEventListener("input", () => {
+        this.query = search.value.trim().toLowerCase();
+        this.renderList();
+      });
+    }
+
+    const sort = document.getElementById("fileSort");
+    if (sort) {
+      sort.value = this.sortKey;
+      sort.addEventListener("change", () => {
+        this.sortKey = sort.value;
+        localStorage.setItem("fileAppSort", this.sortKey);
+        this.renderList();
+      });
+    }
+
+    document.querySelectorAll("[data-type-filter]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        this.filterType = btn.getAttribute("data-type-filter") || "all";
+        document
+          .querySelectorAll("[data-type-filter]")
+          .forEach((b) => b.classList.toggle("active", b === btn));
+        this.renderList();
+      });
+    });
+
+    document.getElementById("refreshBtn")?.addEventListener("click", () => {
+      this.loadFiles();
+      ToastModule.show("Refreshed", "info");
+    });
+    document.getElementById("selectAllBtn")?.addEventListener("click", () => this.selectAllVisible());
+    document.getElementById("clearSelectBtn")?.addEventListener("click", () => this.clearSelection());
+    document.getElementById("batchDeleteBtn")?.addEventListener("click", () => this.batchDelete());
+    document.getElementById("batchZipBtn")?.addEventListener("click", () => this.batchZip());
+    document.getElementById("batchMoveBtn")?.addEventListener("click", () => this.batchMove());
+    document.getElementById("viewToggleBtn")?.addEventListener("click", () => this.toggleView());
+    document.getElementById("newNoteBtn")?.addEventListener("click", () => this.createNote());
+    this.applyViewMode();
+  },
+
+  createNote() {
+    if (Api.readOnly) {
+      ToastModule.show("Public space is read-only", "error");
+      return;
+    }
+    ModalModule.show({
+      title: "New note",
+      message: "Filename ending in .txt or .md",
+      input: true,
+      inputValue: "note.txt",
+      confirmText: "Create",
+      onConfirm: async (name) => {
+        if (!name) return;
+        try {
+          await Api.request("/write.php", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              folder: Api.currentFolder || "",
+              name,
+              content: "",
+            }),
+          });
+          ToastModule.show("Note created", "success");
+          ActivityModule.log?.("Created note", name);
+          this.loadFiles();
+        } catch (error) {
+          if (error.authRequired) AuthGate.prompt();
+          ToastModule.show(error.message || "Could not create note", "error");
+        }
+      },
+    });
+  },
+
+  toggleView() {
+    this.viewMode = this.viewMode === "grid" ? "list" : "grid";
+    localStorage.setItem("fileAppView", this.viewMode);
+    this.applyViewMode();
+    this.renderList();
+  },
+
+  applyViewMode() {
+    const list = document.getElementById("fileList");
+    const btn = document.getElementById("viewToggleBtn");
+    list?.classList.toggle("grid-view", this.viewMode === "grid");
+    if (btn) btn.textContent = this.viewMode === "grid" ? "List" : "Grid";
+  },
+
+  favId(name, isFolder) {
+    return `${Api.space || "personal"}|${Api.currentFolder || ""}|${isFolder ? "d" : "f"}|${name}`;
+  },
+
+  getFavorites() {
+    try {
+      return JSON.parse(localStorage.getItem(this.favoritesKey) || "[]");
+    } catch (e) {
+      return [];
+    }
+  },
+
+  isFavorite(name, isFolder) {
+    return this.getFavorites().includes(this.favId(name, isFolder));
+  },
+
+  toggleFavorite(name, isFolder) {
+    const id = this.favId(name, isFolder);
+    let favs = this.getFavorites();
+    if (favs.includes(id)) favs = favs.filter((x) => x !== id);
+    else favs.push(id);
+    localStorage.setItem(this.favoritesKey, JSON.stringify(favs));
+    this.renderList();
   },
 
   formatSize(bytes) {
@@ -783,10 +1486,35 @@ window.FilesModule = {
 
   formatDate(ts) {
     try {
-      return new Date(ts * 1000).toLocaleString();
+      const d = new Date(ts * 1000);
+      const diff = (Date.now() - d.getTime()) / 1000;
+      if (diff < 60) return "just now";
+      if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+      if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+      if (diff < 86400 * 7) return `${Math.floor(diff / 86400)}d ago`;
+      return d.toLocaleDateString();
     } catch (e) {
       return "";
     }
+  },
+
+  showDetails(file, isFolder = false) {
+    const lines = isFolder
+      ? [`Name: ${file.name}`, `Type: Folder`, `Path: ${file.path || file.name}`]
+      : [
+          `Name: ${file.name}`,
+          `Size: ${this.formatSize(file.size || 0)}`,
+          `Type: ${file.mime || file.ext || "file"}`,
+          `Modified: ${file.mtime ? new Date(file.mtime * 1000).toLocaleString() : "—"}`,
+          `Folder: ${file.folder || "(root)"}`,
+        ];
+    ModalModule.show({
+      title: "Details",
+      message: lines.join("\n"),
+      confirmText: "Close",
+      cancelText: "OK",
+      onConfirm: () => {},
+    });
   },
 
   typeIcon(ext, mime) {
@@ -798,6 +1526,17 @@ window.FilesModule = {
     return "FILE";
   },
 
+  applyReadOnlyUi() {
+    const ro = !!Api.readOnly;
+    document.getElementById("newFolderBtn")?.classList.toggle("hide", ro);
+    document.getElementById("newNoteBtn")?.classList.toggle("hide", ro);
+    document.getElementById("fab")?.classList.toggle("readonly-hide", ro);
+    document.getElementById("batchDeleteBtn")?.classList.toggle("hide", ro);
+    document.getElementById("batchMoveBtn")?.classList.toggle("hide", ro);
+    const note = document.getElementById("readOnlyNote");
+    if (note) note.hidden = !ro;
+  },
+
   updateQuota(limits) {
     const bar = document.getElementById("quotaBar");
     const label = document.getElementById("quotaLabel");
@@ -806,7 +1545,52 @@ window.FilesModule = {
       ? Math.min(100, Math.round((limits.usedBytes / limits.quotaBytes) * 100))
       : 0;
     bar.style.width = pct + "%";
-    label.textContent = `${this.formatSize(limits.usedBytes)} / ${this.formatSize(limits.quotaBytes)} used · max file ${limits.maxUploadMB} MB`;
+    bar.classList.toggle("warn", pct >= 80);
+    bar.classList.toggle("danger", pct >= 95);
+    const counts = `${this.folders.length} folders · ${this.files.length} files`;
+    label.textContent = `${this.formatSize(limits.usedBytes)} / ${this.formatSize(limits.quotaBytes)} used · max file ${limits.maxUploadMB} MB · ${counts}`;
+    this.refreshStats();
+  },
+
+  async refreshStats() {
+    const el = document.getElementById("spaceStats");
+    if (!el) return;
+    try {
+      const s = await Api.request("/stats.php");
+      el.textContent = `Space total: ${s.files} files, ${s.folders} folders (${s.usedHuman})`;
+      el.hidden = false;
+    } catch (e) {
+      el.hidden = true;
+    }
+  },
+
+  updateSelectionBar() {
+    const bar = document.getElementById("selectionBar");
+    const count = document.getElementById("selectionCount");
+    if (!bar || !count) return;
+    const n = this.selected.size;
+    bar.classList.toggle("show", n > 0);
+    count.textContent = n ? `${n} selected` : "";
+  },
+
+  clearSelection() {
+    this.selected.clear();
+    this.updateSelectionBar();
+    this.renderList();
+  },
+
+  selectAllVisible() {
+    const { folders, files } = this.visibleItems();
+    folders.forEach((f) => this.selected.add(`d:${f.name}`));
+    files.forEach((f) => this.selected.add(`f:${f.name}`));
+    this.updateSelectionBar();
+    this.renderList();
+  },
+
+  toggleSelect(key) {
+    if (this.selected.has(key)) this.selected.delete(key);
+    else this.selected.add(key);
+    this.updateSelectionBar();
   },
 
   renderBreadcrumb(folder) {
@@ -816,7 +1600,7 @@ window.FilesModule = {
     const root = document.createElement("button");
     root.type = "button";
     root.className = "crumb";
-    root.textContent = "My space";
+    root.textContent = Api.space === "public" ? "Public" : "My space";
     root.addEventListener("click", () => this.openFolder(""));
     nav.appendChild(root);
 
@@ -842,6 +1626,11 @@ window.FilesModule = {
 
   openFolder(folder) {
     Api.currentFolder = folder || "";
+    localStorage.setItem(
+      "fileAppLastFolder:" + (Api.space || ""),
+      Api.currentFolder
+    );
+    this.clearSelection();
     this.loadFiles();
   },
 
@@ -883,37 +1672,24 @@ window.FilesModule = {
         ? `?folder=${encodeURIComponent(Api.currentFolder)}`
         : "";
       const data = await Api.request("/list.php" + q);
-      const folders = data.folders || [];
-      const files = data.files || [];
+      this.folders = data.folders || [];
+      this.files = data.files || [];
       Api.limits = data.limits || null;
       Api.allowedExtensions = data.allowedExtensions || null;
-      Api.mobileMasked = data.mobileMasked || Api.mobileMasked;
+      Api.readOnly = !!data.readOnly;
+      if (data.mobileMasked) Api.mobileMasked = data.mobileMasked;
       this.updateQuota(Api.limits);
-
-      const accountLabel = document.getElementById("accountLabel");
-      if (accountLabel) accountLabel.textContent = Api.mobileMasked || "Account";
+      AuthGate.updateSpaceUi?.();
+      RecentModule.render?.();
+      ActivityModule.render?.();
+      this.applyReadOnlyUi();
 
       const accept =
         data.accept || (Api.allowedExtensions || []).map((e) => `.${e}`).join(",");
       const input = document.getElementById("fileInput");
       if (input && accept) input.setAttribute("accept", accept);
 
-      list.innerHTML = "";
-
-      if (!folders.length && !files.length) {
-        const empty = document.createElement("li");
-        empty.className = "empty-state";
-        empty.textContent = "Empty. Create a folder or upload a file.";
-        list.appendChild(empty);
-        return;
-      }
-
-      folders.forEach((folder, index) => {
-        list.appendChild(this.renderFolderRow(folder, index));
-      });
-      files.forEach((file, index) => {
-        list.appendChild(this.renderFileRow(file, index));
-      });
+      this.renderList();
     } catch (error) {
       list.innerHTML = "";
       const err = document.createElement("li");
@@ -927,11 +1703,117 @@ window.FilesModule = {
     }
   },
 
+  matchesType(file) {
+    const t = this.filterType;
+    if (t === "all") return true;
+    if (t === "fav") return this.isFavorite(file.name, false);
+    const mime = file.mime || "";
+    const ext = (file.ext || "").toLowerCase();
+    if (t === "image") return mime.startsWith("image/");
+    if (t === "video") return mime.startsWith("video/");
+    if (t === "audio") return mime.startsWith("audio/");
+    if (t === "doc")
+      return ["pdf", "txt", "csv", "json", "md", "doc", "docx", "xls", "xlsx", "ppt", "pptx"].includes(ext);
+    return true;
+  },
+
+  visibleItems() {
+    const q = this.query;
+    let folders = this.folders.filter((f) => {
+      if (this.filterType === "fav") return this.isFavorite(f.name, true);
+      if (this.filterType !== "all" && this.filterType !== "fav") return false;
+      return !q || f.name.toLowerCase().includes(q);
+    });
+    let files = this.files.filter((f) => {
+      if (!this.matchesType(f)) return false;
+      return !q || f.name.toLowerCase().includes(q);
+    });
+
+    const sortKey = this.sortKey;
+    const byName = (a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
+    const bySize = (a, b) => (a.size || 0) - (b.size || 0);
+    const byDate = (a, b) => (a.mtime || 0) - (b.mtime || 0);
+
+    folders = [...folders].sort(byName);
+    if (sortKey === "name") files = [...files].sort(byName);
+    else if (sortKey === "name-desc") files = [...files].sort((a, b) => byName(b, a));
+    else if (sortKey === "size") files = [...files].sort((a, b) => bySize(b, a));
+    else if (sortKey === "oldest") files = [...files].sort(byDate);
+    else files = [...files].sort((a, b) => byDate(b, a));
+
+    return { folders, files };
+  },
+
+  renderList() {
+    const list = document.getElementById("fileList");
+    if (!list) return;
+    list.innerHTML = "";
+    const { folders, files } = this.visibleItems();
+
+    if (!folders.length && !files.length) {
+      const empty = document.createElement("li");
+      empty.className = "empty-state";
+      if (this.query || this.filterType !== "all") {
+        empty.textContent = "No matches.";
+      } else {
+        empty.innerHTML = "";
+        const p = document.createElement("p");
+        p.textContent = "This folder is empty.";
+        empty.appendChild(p);
+        if (!Api.readOnly) {
+          const actions = document.createElement("div");
+          actions.className = "empty-actions";
+          const up = document.createElement("button");
+          up.type = "button";
+          up.className = "btn upload";
+          up.textContent = "Upload";
+          up.addEventListener("click", () => openUpload());
+          const folder = document.createElement("button");
+          folder.type = "button";
+          folder.className = "btn";
+          folder.textContent = "New folder";
+          folder.addEventListener("click", () => this.createFolder());
+          const note = document.createElement("button");
+          note.type = "button";
+          note.className = "btn ghost";
+          note.textContent = "New note";
+          note.addEventListener("click", () => this.createNote());
+          actions.append(up, folder, note);
+          empty.appendChild(actions);
+        }
+      }
+      list.appendChild(empty);
+      this.updateSelectionBar();
+      return;
+    }
+
+    folders.forEach((folder, index) => {
+      list.appendChild(this.renderFolderRow(folder, index));
+    });
+    files.forEach((file, index) => {
+      list.appendChild(this.renderFileRow(file, index));
+    });
+    this.updateSelectionBar();
+  },
+
   renderFolderRow(folder, index) {
     const li = document.createElement("li");
     li.className = "file-row folder-row";
+    if (this.selected.has(`d:${folder.name}`)) li.classList.add("selected");
+
     const main = document.createElement("div");
     main.className = "file-item-header";
+
+    const check = document.createElement("input");
+    check.type = "checkbox";
+    check.className = "row-check";
+    check.checked = this.selected.has(`d:${folder.name}`);
+    check.addEventListener("click", (e) => e.stopPropagation());
+    check.addEventListener("change", () => {
+      this.toggleSelect(`d:${folder.name}`);
+      li.classList.toggle("selected", this.selected.has(`d:${folder.name}`));
+      this.updateSelectionBar();
+    });
 
     const left = document.createElement("button");
     left.type = "button";
@@ -956,21 +1838,25 @@ window.FilesModule = {
     meta.append(title, sub);
     left.append(thumb, meta);
 
+    const star = document.createElement("button");
+    star.type = "button";
+    star.className = "star-btn" + (this.isFavorite(folder.name, true) ? " on" : "");
+    star.textContent = this.isFavorite(folder.name, true) ? "★" : "☆";
+    star.title = "Favorite";
+    star.addEventListener("click", (e) => {
+      e.stopPropagation();
+      this.toggleFavorite(folder.name, true);
+    });
+
     const menuId = `folder-menu-${index}`;
     const menuContainer = this.buildMenu(menuId, [
-      {
-        label: "Rename",
-        className: "rename",
-        onClick: () => this.renameItem(folder.name, true),
-      },
-      {
-        label: "Delete",
-        className: "delete",
-        onClick: () => this.deleteItem(folder.name, true),
-      },
+      { label: "Details", className: "view", onClick: () => this.showDetails(folder, true) },
+      { label: "Rename", className: "rename", onClick: () => this.renameItem(folder.name, true) },
+      { label: "Move…", className: "move", onClick: () => this.moveItem(folder.name, true) },
+      { label: "Delete", className: "delete", onClick: () => this.deleteItem(folder.name, true) },
     ]);
 
-    main.append(left, menuContainer);
+    main.append(check, left, star, menuContainer);
     li.appendChild(main);
     return li;
   },
@@ -979,12 +1865,26 @@ window.FilesModule = {
     const name = file.name;
     const li = document.createElement("li");
     li.className = "file-row";
+    if (this.selected.has(`f:${name}`)) li.classList.add("selected");
 
     const main = document.createElement("div");
     main.className = "file-item-header";
 
-    const left = document.createElement("div");
-    left.className = "file-main";
+    const check = document.createElement("input");
+    check.type = "checkbox";
+    check.className = "row-check";
+    check.checked = this.selected.has(`f:${name}`);
+    check.addEventListener("click", (e) => e.stopPropagation());
+    check.addEventListener("change", () => {
+      this.toggleSelect(`f:${name}`);
+      li.classList.toggle("selected", this.selected.has(`f:${name}`));
+      this.updateSelectionBar();
+    });
+
+    const left = document.createElement("button");
+    left.type = "button";
+    left.className = "file-main folder-open";
+    left.addEventListener("click", () => PreviewModule.open(file));
 
     const thumbWrap = document.createElement("div");
     thumbWrap.className = "file-thumb";
@@ -1012,31 +1912,37 @@ window.FilesModule = {
     meta.append(title, sub);
     left.append(thumbWrap, meta);
 
+    const star = document.createElement("button");
+    star.type = "button";
+    star.className = "star-btn" + (this.isFavorite(name, false) ? " on" : "");
+    star.textContent = this.isFavorite(name, false) ? "★" : "☆";
+    star.title = "Favorite";
+    star.addEventListener("click", (e) => {
+      e.stopPropagation();
+      this.toggleFavorite(name, false);
+    });
+
     const menuId = `menu-${index}`;
     const menuContainer = this.buildMenu(menuId, [
-      {
-        label: "Rename",
-        className: "rename",
-        onClick: () => this.renameItem(name, false),
-      },
-      {
-        label: "Delete",
-        className: "delete",
-        onClick: () => this.deleteItem(name, false),
-      },
+      { label: "Preview", className: "view", onClick: () => PreviewModule.open(file) },
+      { label: "Details", className: "view", onClick: () => this.showDetails(file, false) },
+      { label: "Copy link", className: "copy", onClick: () => this.copyLink(file) },
+      { label: "Duplicate", className: "copy", onClick: () => this.duplicateFile(name) },
+      { label: "Move…", className: "move", onClick: () => this.moveItem(name, false) },
+      { label: "Rename", className: "rename", onClick: () => this.renameItem(name, false) },
+      { label: "Delete", className: "delete", onClick: () => this.deleteItem(name, false) },
     ]);
 
-    main.append(left, menuContainer);
+    main.append(check, left, star, menuContainer);
 
     const actions = document.createElement("div");
     actions.className = "file-actions";
 
-    const view = document.createElement("a");
+    const view = document.createElement("button");
+    view.type = "button";
     view.className = "btn view";
-    view.target = "_blank";
-    view.rel = "noopener noreferrer";
     view.textContent = "View";
-    view.href = Api.absoluteUrl(file.viewUrl || file.downloadUrl);
+    view.addEventListener("click", () => PreviewModule.open(file));
 
     const download = document.createElement("a");
     download.className = "btn download";
@@ -1081,11 +1987,146 @@ window.FilesModule = {
     document.getElementById(menuId)?.classList.toggle("show");
   },
 
+  async copyLink(file) {
+    const url = Api.absoluteUrl(file.downloadUrl || file.viewUrl);
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: file.name, url });
+        ActivityModule.log?.("Shared", file.name);
+        return;
+      } catch (e) {
+        if (e && e.name === "AbortError") return;
+      }
+    }
+    try {
+      await navigator.clipboard.writeText(url);
+      ToastModule.show("Link copied", "success");
+      ActivityModule.log?.("Copied link", file.name);
+    } catch (e) {
+      prompt("Copy this link:", url);
+    }
+  },
+
+  async duplicateFile(name) {
+    try {
+      const res = await Api.request("/copy.php", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name,
+          fromFolder: Api.currentFolder || "",
+          toFolder: Api.currentFolder || "",
+          autoRename: true,
+        }),
+      });
+      ToastModule.show(`Duplicated as ${res.name}`, "success");
+      this.loadFiles();
+    } catch (error) {
+      if (error.authRequired) AuthGate.prompt();
+      ToastModule.show(error.message || "Duplicate failed", "error");
+    }
+  },
+
+  async pickFolder(title) {
+    let folders = [];
+    try {
+      const data = await Api.request("/folders.php");
+      folders = data.folders || [];
+    } catch (e) {
+      ToastModule.show(e.message || "Could not load folders", "error");
+      return null;
+    }
+    return new Promise((resolve) => {
+      const options = folders
+        .map((f) => {
+          const label = f.path === "" ? "(root)" : f.path;
+          const pad = "  ".repeat(f.depth || 0);
+          return `<option value="${f.path}">${pad}${label}</option>`;
+        })
+        .join("");
+      ModalModule.show({
+        title: title || "Move to folder",
+        message: "Choose destination",
+        input: false,
+        html: `<select id="moveFolderSelect" class="modal-select">${options}</select>`,
+        confirmText: "Move here",
+        onConfirm: () => {
+          const sel = document.getElementById("moveFolderSelect");
+          resolve(sel ? sel.value : "");
+        },
+        onCancel: () => resolve(null),
+      });
+      // ModalModule may not support html — fallback prompt
+      setTimeout(() => {
+        if (!document.getElementById("moveFolderSelect")) {
+          const paths = folders.map((f) => (f.path === "" ? "(root)" : f.path)).join("\n");
+          const picked = prompt(`Enter destination folder path:\n${paths}`, Api.currentFolder || "");
+          if (picked === null) resolve(null);
+          else resolve(picked === "(root)" ? "" : picked);
+        }
+      }, 50);
+    });
+  },
+
+  async moveItem(name, isFolder) {
+    const toFolder = await this.pickDestination(name);
+    if (toFolder === null) return;
+    try {
+      await Api.request("/move.php", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name,
+          fromFolder: Api.currentFolder || "",
+          toFolder,
+          isFolder: !!isFolder,
+        }),
+      });
+      ToastModule.show("Moved", "success");
+      this.loadFiles();
+    } catch (error) {
+      if (error.authRequired) AuthGate.prompt();
+      ToastModule.show(error.message || "Move failed", "error");
+    }
+  },
+
+  async pickDestination(excludeName) {
+    let folders = [];
+    try {
+      const data = await Api.request("/folders.php");
+      folders = (data.folders || []).filter((f) => {
+        if (!excludeName) return true;
+        const cur = Api.currentFolder || "";
+        const self = cur === "" ? excludeName : `${cur}/${excludeName}`;
+        return f.path !== self && !String(f.path).startsWith(self + "/");
+      });
+    } catch (e) {
+      ToastModule.show(e.message || "Could not load folders", "error");
+      return null;
+    }
+
+    const labels = folders.map((f) => (f.path === "" ? "(root)" : f.path));
+    return new Promise((resolve) => {
+      ModalModule.show({
+        title: "Move to…",
+        message: "Type destination folder path (blank = root).\n\n" + labels.slice(0, 20).join("\n"),
+        input: true,
+        inputValue: "",
+        confirmText: "Move",
+        onConfirm: (val) => {
+          const v = (val || "").trim();
+          resolve(v === "(root)" ? "" : v);
+        },
+        onCancel: () => resolve(null),
+      });
+    });
+  },
+
   deleteItem(name, isFolder) {
     ModalModule.show({
       title: isFolder ? "Delete folder" : "Delete file",
       message: isFolder
-        ? `Delete empty folder "${name}"?`
+        ? `Delete folder "${name}"? If it has files, confirm again to delete everything inside.`
         : `Delete ${name}?`,
       confirmText: "Delete",
       danger: true,
@@ -1101,9 +2142,38 @@ window.FilesModule = {
             }),
           });
           ToastModule.show(isFolder ? "Folder deleted" : "File deleted", "success");
+          ActivityModule.log?.("Deleted", name);
           this.loadFiles();
         } catch (error) {
           if (error.authRequired) AuthGate.prompt();
+          if (isFolder && error.code === 409) {
+            ModalModule.show({
+              title: "Folder not empty",
+              message: `Delete "${name}" and everything inside? This cannot be undone.`,
+              confirmText: "Delete all",
+              danger: true,
+              onConfirm: async () => {
+                try {
+                  await Api.request("/delete.php", {
+                    method: "DELETE",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      fileName: name,
+                      folder: Api.currentFolder || "",
+                      isFolder: true,
+                      recursive: true,
+                    }),
+                  });
+                  ToastModule.show("Folder deleted", "success");
+                  ActivityModule.log?.("Deleted folder tree", name);
+                  this.loadFiles();
+                } catch (e2) {
+                  ToastModule.show(e2.message || "Delete failed", "error");
+                }
+              },
+            });
+            return;
+          }
           ToastModule.show(error.message || "Delete failed", "error");
         }
       },
@@ -1138,6 +2208,110 @@ window.FilesModule = {
       },
     });
   },
+
+  selectedItems() {
+    const items = [];
+    this.selected.forEach((key) => {
+      const isFolder = key.startsWith("d:");
+      const name = key.slice(2);
+      items.push({ name, isFolder });
+    });
+    return items;
+  },
+
+  batchDelete() {
+    const items = this.selectedItems();
+    if (!items.length) return;
+    ModalModule.show({
+      title: "Delete selected",
+      message: `Delete ${items.length} item(s)? Empty folders only.`,
+      confirmText: "Delete",
+      danger: true,
+      onConfirm: async () => {
+        try {
+          const res = await Api.request("/batch-delete.php", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              folder: Api.currentFolder || "",
+              items,
+            }),
+          });
+          const failed = (res.failed || []).length;
+          ToastModule.show(
+            failed ? `Deleted ${res.deleted.length}, ${failed} failed` : `Deleted ${res.deleted.length}`,
+            failed ? "error" : "success"
+          );
+          this.clearSelection();
+          this.loadFiles();
+        } catch (error) {
+          if (error.authRequired) AuthGate.prompt();
+          ToastModule.show(error.message || "Batch delete failed", "error");
+        }
+      },
+    });
+  },
+
+  async batchMove() {
+    const items = this.selectedItems();
+    if (!items.length) return;
+    const toFolder = await this.pickDestination();
+    if (toFolder === null) return;
+    let ok = 0;
+    let fail = 0;
+    for (const item of items) {
+      try {
+        await Api.request("/move.php", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: item.name,
+            fromFolder: Api.currentFolder || "",
+            toFolder,
+            isFolder: item.isFolder,
+          }),
+        });
+        ok++;
+      } catch (e) {
+        fail++;
+      }
+    }
+    ToastModule.show(`Moved ${ok}${fail ? `, ${fail} failed` : ""}`, fail ? "error" : "success");
+    this.clearSelection();
+    this.loadFiles();
+  },
+
+  async batchZip() {
+    const files = this.selectedItems().filter((i) => !i.isFolder).map((i) => i.name);
+    if (!files.length) {
+      ToastModule.show("Select files (not folders) to zip", "error");
+      return;
+    }
+    try {
+      const res = await fetch(API_BASE + Api.withSpace("/zip.php"), {
+        method: "POST",
+        headers: Api.authHeaders({ "Content-Type": "application/json" }),
+        body: JSON.stringify({
+          folder: Api.currentFolder || "",
+          names: files,
+        }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || "Zip failed");
+      }
+      const blob = await res.blob();
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = `files-${Date.now()}.zip`;
+      a.click();
+      URL.revokeObjectURL(a.href);
+      ToastModule.show("Zip downloaded", "success");
+    } catch (error) {
+      if (error.authRequired) AuthGate.prompt();
+      ToastModule.show(error.message || "Zip failed", "error");
+    }
+  },
 };
 
 
@@ -1163,13 +2337,13 @@ window.DragDropModule = {
 
     dropZone.addEventListener("drop", (e) => {
       dropZone.classList.remove("dragover");
-      const file = e.dataTransfer.files[0];
-      UploadModule.handleFile(file);
+      const files = Array.from(e.dataTransfer.files || []);
+      UploadModule.handleFiles(files);
     });
 
     fileInput.addEventListener("change", (e) => {
-      const file = e.target.files[0];
-      UploadModule.handleFile(file);
+      const files = Array.from(e.target.files || []);
+      UploadModule.handleFiles(files);
     });
   },
 
@@ -1180,8 +2354,74 @@ window.DragDropModule = {
 };
 
 
+/* ===== modules\shortcuts.js ===== */
+window.ShortcutsModule = {
+  init() {
+    document.addEventListener("keydown", (e) => this.onKey(e));
+  },
+
+  isTypingTarget(el) {
+    if (!el) return false;
+    const tag = (el.tagName || "").toLowerCase();
+    return tag === "input" || tag === "textarea" || tag === "select" || el.isContentEditable;
+  },
+
+  onKey(e) {
+    if (this.isTypingTarget(e.target)) {
+      if (e.key === "Escape") e.target.blur();
+      return;
+    }
+    if (document.getElementById("loginGate")?.classList.contains("show")) return;
+    if (document.getElementById("previewOverlay")?.classList.contains("show")) return;
+
+    if (e.key === "/" && !e.ctrlKey && !e.metaKey) {
+      e.preventDefault();
+      document.getElementById("fileSearch")?.focus();
+      return;
+    }
+    if ((e.key === "u" || e.key === "U") && !e.ctrlKey && !e.metaKey) {
+      e.preventDefault();
+      openUpload();
+      return;
+    }
+    if ((e.key === "n" || e.key === "N") && !e.ctrlKey && !e.metaKey) {
+      e.preventDefault();
+      FilesModule.createFolder();
+      return;
+    }
+    if ((e.key === "t" || e.key === "T") && !e.ctrlKey && !e.metaKey) {
+      e.preventDefault();
+      FilesModule.createNote?.();
+      return;
+    }
+    if ((e.key === "r" || e.key === "R") && !e.ctrlKey && !e.metaKey) {
+      e.preventDefault();
+      FilesModule.loadFiles();
+      ToastModule.show("Refreshed", "info");
+      return;
+    }
+    if ((e.key === "a" || e.key === "A") && (e.ctrlKey || e.metaKey)) {
+      e.preventDefault();
+      FilesModule.selectAllVisible?.();
+      return;
+    }
+    if (e.key === "Delete" || e.key === "Backspace") {
+      if (FilesModule.selected?.size) {
+        e.preventDefault();
+        FilesModule.batchDelete?.();
+      }
+      return;
+    }
+    if (e.key === "Escape") {
+      closeUpload();
+      FilesModule.clearSelection?.();
+    }
+  },
+};
+
+
 /* ===== script.js ===== */
-const APP_UI_VERSION = "1.4.0";
+const APP_UI_VERSION = "1.6.0";
 const APP_API_VERSION = "v1";
 
 function detectServerBase() {
@@ -1221,9 +2461,15 @@ function bindUiEvents() {
   const resumeBtn = document.getElementById("resumeUploadBtn");
   const cancelBtn = document.getElementById("cancelUploadBtn");
   const newFolderBtn = document.getElementById("newFolderBtn");
+  const tabPublic = document.getElementById("tabPublic");
+  const tabPersonal = document.getElementById("tabPersonal");
+  const backBtn = document.getElementById("backToChoicesBtn");
 
   if (accountBtn) accountBtn.addEventListener("click", () => AuthGate.openSettings());
   if (newFolderBtn) newFolderBtn.addEventListener("click", () => FilesModule.createFolder());
+  if (tabPublic) tabPublic.addEventListener("click", () => AuthGate.switchToPublic());
+  if (tabPersonal) tabPersonal.addEventListener("click", () => AuthGate.switchToPersonal());
+  if (backBtn) backBtn.addEventListener("click", () => AuthGate.showChoices());
   if (fab) fab.addEventListener("click", () => openUpload());
   if (overlay) overlay.addEventListener("click", () => closeUpload());
   if (uploadBox) uploadBox.addEventListener("click", (e) => e.stopPropagation());
@@ -1236,13 +2482,21 @@ function bindUiEvents() {
 async function bootApp() {
   await resolveApiBase();
   bindUiEvents();
+  ThemeModule.init();
   ToastModule.init();
   ModalModule.init();
+  PreviewModule.init();
   AuthGate.init();
   HealthBanner.init();
   FilesModule.init();
   UploadModule.init();
   DragDropModule.init();
+  ShortcutsModule.init();
+  ActivityModule.init();
+  RecentModule.init();
+  OfflineModule.init();
+  PasteUploadModule.init();
+  initPullToRefresh();
 
   const ok = await AuthGate.check();
   if (ok) {
@@ -1250,9 +2504,18 @@ async function bootApp() {
   }
 }
 
+function canUseCurrentSpace() {
+  if (Api.space === "public") return true;
+  return !!Api.getAccessKey();
+}
+
 function openUpload() {
-  if (!Api.getAccessKey()) {
+  if (!canUseCurrentSpace()) {
     AuthGate.prompt();
+    return;
+  }
+  if (Api.readOnly) {
+    ToastModule.show("Public space is read-only", "error");
     return;
   }
   const fab = document.getElementById("fab");
@@ -1266,9 +2529,39 @@ function openUpload() {
 function closeUpload() {
   const fab = document.getElementById("fab");
   const overlay = document.getElementById("overlay");
-  fab.classList.remove("hide");
+  if (!Api.readOnly) fab.classList.remove("hide");
   overlay.classList.remove("show");
   overlay.setAttribute("aria-hidden", "true");
+}
+
+function initPullToRefresh() {
+  let startY = 0;
+  let pulling = false;
+  const shell = document.getElementById("appShell");
+  if (!shell) return;
+  shell.addEventListener(
+    "touchstart",
+    (e) => {
+      if (window.scrollY <= 0) {
+        startY = e.touches[0].clientY;
+        pulling = true;
+      }
+    },
+    { passive: true }
+  );
+  shell.addEventListener(
+    "touchend",
+    (e) => {
+      if (!pulling) return;
+      pulling = false;
+      const dy = e.changedTouches[0].clientY - startY;
+      if (dy > 80 && canUseCurrentSpace()) {
+        FilesModule.loadFiles();
+        ToastModule.show("Refreshed", "info");
+      }
+    },
+    { passive: true }
+  );
 }
 
 if (document.readyState === "loading") {

@@ -4,7 +4,8 @@ require $root . '/config.php';
 require $root . '/rate-limit.php';
 require $root . '/throttle.php';
 
-app_require_auth();
+app_require_space();
+app_require_writable_space();
 applyThrottle(200);
 checkRateLimit(5, 1);
 
@@ -62,6 +63,10 @@ if ($used + (int) ($file['size'] ?? 0) > $quota) {
         'usedBytes' => $used,
         'quotaBytes' => $quota,
     ], 413);
+}
+
+if ($folder !== '' && !app_folder_exists($folder)) {
+    app_json(['error' => 'Folder not found'], 404);
 }
 
 $fileKey = app_chunk_key($uploadId, $fileName);

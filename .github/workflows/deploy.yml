@@ -85,6 +85,7 @@ jobs:
               --exclude '(^|/)storage/chunks(/|$)' \
               --exclude '(^|/)storage/users(/|$)' \
               --exclude '(^|/)storage/sessions(/|$)' \
+              --exclude '(^|/)storage/public(/|$)' \
               --exclude '(^|/)rate_limit(/|$)' \
               --exclude '(^|/)throttle(/|$)' \
               --exclude '(^|/)tokens(/|$)' \

@@ -1,10 +1,133 @@
 window.FilesModule = {
+  folders: [],
+  files: [],
+  selected: new Set(),
+  sortKey: localStorage.getItem("fileAppSort") || "newest",
+  filterType: "all",
+  query: "",
+  viewMode: localStorage.getItem("fileAppView") || "list",
+  favoritesKey: "fileAppFavorites",
+
   init() {
     document.addEventListener("click", () => {
       document
         .querySelectorAll(".dropdown-menu.show")
         .forEach((menu) => menu.classList.remove("show"));
     });
+
+    const search = document.getElementById("fileSearch");
+    if (search) {
+      search.addEventListener("input", () => {
+        this.query = search.value.trim().toLowerCase();
+        this.renderList();
+      });
+    }
+
+    const sort = document.getElementById("fileSort");
+    if (sort) {
+      sort.value = this.sortKey;
+      sort.addEventListener("change", () => {
+        this.sortKey = sort.value;
+        localStorage.setItem("fileAppSort", this.sortKey);
+        this.renderList();
+      });
+    }
+
+    document.querySelectorAll("[data-type-filter]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        this.filterType = btn.getAttribute("data-type-filter") || "all";
+        document
+          .querySelectorAll("[data-type-filter]")
+          .forEach((b) => b.classList.toggle("active", b === btn));
+        this.renderList();
+      });
+    });
+
+    document.getElementById("refreshBtn")?.addEventListener("click", () => {
+      this.loadFiles();
+      ToastModule.show("Refreshed", "info");
+    });
+    document.getElementById("selectAllBtn")?.addEventListener("click", () => this.selectAllVisible());
+    document.getElementById("clearSelectBtn")?.addEventListener("click", () => this.clearSelection());
+    document.getElementById("batchDeleteBtn")?.addEventListener("click", () => this.batchDelete());
+    document.getElementById("batchZipBtn")?.addEventListener("click", () => this.batchZip());
+    document.getElementById("batchMoveBtn")?.addEventListener("click", () => this.batchMove());
+    document.getElementById("viewToggleBtn")?.addEventListener("click", () => this.toggleView());
+    document.getElementById("newNoteBtn")?.addEventListener("click", () => this.createNote());
+    this.applyViewMode();
+  },
+
+  createNote() {
+    if (Api.readOnly) {
+      ToastModule.show("Public space is read-only", "error");
+      return;
+    }
+    ModalModule.show({
+      title: "New note",
+      message: "Filename ending in .txt or .md",
+      input: true,
+      inputValue: "note.txt",
+      confirmText: "Create",
+      onConfirm: async (name) => {
+        if (!name) return;
+        try {
+          await Api.request("/write.php", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              folder: Api.currentFolder || "",
+              name,
+              content: "",
+            }),
+          });
+          ToastModule.show("Note created", "success");
+          ActivityModule.log?.("Created note", name);
+          this.loadFiles();
+        } catch (error) {
+          if (error.authRequired) AuthGate.prompt();
+          ToastModule.show(error.message || "Could not create note", "error");
+        }
+      },
+    });
+  },
+
+  toggleView() {
+    this.viewMode = this.viewMode === "grid" ? "list" : "grid";
+    localStorage.setItem("fileAppView", this.viewMode);
+    this.applyViewMode();
+    this.renderList();
+  },
+
+  applyViewMode() {
+    const list = document.getElementById("fileList");
+    const btn = document.getElementById("viewToggleBtn");
+    list?.classList.toggle("grid-view", this.viewMode === "grid");
+    if (btn) btn.textContent = this.viewMode === "grid" ? "List" : "Grid";
+  },
+
+  favId(name, isFolder) {
+    return `${Api.space || "personal"}|${Api.currentFolder || ""}|${isFolder ? "d" : "f"}|${name}`;
+  },
+
+  getFavorites() {
+    try {
+      return JSON.parse(localStorage.getItem(this.favoritesKey) || "[]");
+    } catch (e) {
+      return [];
+    }
+  },
+
+  isFavorite(name, isFolder) {
+    return this.getFavorites().includes(this.favId(name, isFolder));
+  },
+
+  toggleFavorite(name, isFolder) {
+    const id = this.favId(name, isFolder);
+    let favs = this.getFavorites();
+    if (favs.includes(id)) favs = favs.filter((x) => x !== id);
+    else favs.push(id);
+    localStorage.setItem(this.favoritesKey, JSON.stringify(favs));
+    this.renderList();
   },
 
   formatSize(bytes) {
@@ -15,10 +138,35 @@ window.FilesModule = {
 
   formatDate(ts) {
     try {
-      return new Date(ts * 1000).toLocaleString();
+      const d = new Date(ts * 1000);
+      const diff = (Date.now() - d.getTime()) / 1000;
+      if (diff < 60) return "just now";
+      if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+      if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+      if (diff < 86400 * 7) return `${Math.floor(diff / 86400)}d ago`;
+      return d.toLocaleDateString();
     } catch (e) {
       return "";
     }
+  },
+
+  showDetails(file, isFolder = false) {
+    const lines = isFolder
+      ? [`Name: ${file.name}`, `Type: Folder`, `Path: ${file.path || file.name}`]
+      : [
+          `Name: ${file.name}`,
+          `Size: ${this.formatSize(file.size || 0)}`,
+          `Type: ${file.mime || file.ext || "file"}`,
+          `Modified: ${file.mtime ? new Date(file.mtime * 1000).toLocaleString() : "—"}`,
+          `Folder: ${file.folder || "(root)"}`,
+        ];
+    ModalModule.show({
+      title: "Details",
+      message: lines.join("\n"),
+      confirmText: "Close",
+      cancelText: "OK",
+      onConfirm: () => {},
+    });
   },
 
   typeIcon(ext, mime) {
@@ -30,6 +178,17 @@ window.FilesModule = {
     return "FILE";
   },
 
+  applyReadOnlyUi() {
+    const ro = !!Api.readOnly;
+    document.getElementById("newFolderBtn")?.classList.toggle("hide", ro);
+    document.getElementById("newNoteBtn")?.classList.toggle("hide", ro);
+    document.getElementById("fab")?.classList.toggle("readonly-hide", ro);
+    document.getElementById("batchDeleteBtn")?.classList.toggle("hide", ro);
+    document.getElementById("batchMoveBtn")?.classList.toggle("hide", ro);
+    const note = document.getElementById("readOnlyNote");
+    if (note) note.hidden = !ro;
+  },
+
   updateQuota(limits) {
     const bar = document.getElementById("quotaBar");
     const label = document.getElementById("quotaLabel");
@@ -38,7 +197,52 @@ window.FilesModule = {
       ? Math.min(100, Math.round((limits.usedBytes / limits.quotaBytes) * 100))
       : 0;
     bar.style.width = pct + "%";
-    label.textContent = `${this.formatSize(limits.usedBytes)} / ${this.formatSize(limits.quotaBytes)} used · max file ${limits.maxUploadMB} MB`;
+    bar.classList.toggle("warn", pct >= 80);
+    bar.classList.toggle("danger", pct >= 95);
+    const counts = `${this.folders.length} folders · ${this.files.length} files`;
+    label.textContent = `${this.formatSize(limits.usedBytes)} / ${this.formatSize(limits.quotaBytes)} used · max file ${limits.maxUploadMB} MB · ${counts}`;
+    this.refreshStats();
+  },
+
+  async refreshStats() {
+    const el = document.getElementById("spaceStats");
+    if (!el) return;
+    try {
+      const s = await Api.request("/stats.php");
+      el.textContent = `Space total: ${s.files} files, ${s.folders} folders (${s.usedHuman})`;
+      el.hidden = false;
+    } catch (e) {
+      el.hidden = true;
+    }
+  },
+
+  updateSelectionBar() {
+    const bar = document.getElementById("selectionBar");
+    const count = document.getElementById("selectionCount");
+    if (!bar || !count) return;
+    const n = this.selected.size;
+    bar.classList.toggle("show", n > 0);
+    count.textContent = n ? `${n} selected` : "";
+  },
+
+  clearSelection() {
+    this.selected.clear();
+    this.updateSelectionBar();
+    this.renderList();
+  },
+
+  selectAllVisible() {
+    const { folders, files } = this.visibleItems();
+    folders.forEach((f) => this.selected.add(`d:${f.name}`));
+    files.forEach((f) => this.selected.add(`f:${f.name}`));
+    this.updateSelectionBar();
+    this.renderList();
+  },
+
+  toggleSelect(key) {
+    if (this.selected.has(key)) this.selected.delete(key);
+    else this.selected.add(key);
+    this.updateSelectionBar();
   },
 
   renderBreadcrumb(folder) {
@@ -48,7 +252,7 @@ window.FilesModule = {
     const root = document.createElement("button");
     root.type = "button";
     root.className = "crumb";
-    root.textContent = "My space";
+    root.textContent = Api.space === "public" ? "Public" : "My space";
     root.addEventListener("click", () => this.openFolder(""));
     nav.appendChild(root);
 
@@ -74,6 +278,11 @@ window.FilesModule = {
 
   openFolder(folder) {
     Api.currentFolder = folder || "";
+    localStorage.setItem(
+      "fileAppLastFolder:" + (Api.space || ""),
+      Api.currentFolder
+    );
+    this.clearSelection();
     this.loadFiles();
   },
 
@@ -115,37 +324,24 @@ window.FilesModule = {
         ? `?folder=${encodeURIComponent(Api.currentFolder)}`
         : "";
       const data = await Api.request("/list.php" + q);
-      const folders = data.folders || [];
-      const files = data.files || [];
+      this.folders = data.folders || [];
+      this.files = data.files || [];
       Api.limits = data.limits || null;
       Api.allowedExtensions = data.allowedExtensions || null;
-      Api.mobileMasked = data.mobileMasked || Api.mobileMasked;
+      Api.readOnly = !!data.readOnly;
+      if (data.mobileMasked) Api.mobileMasked = data.mobileMasked;
       this.updateQuota(Api.limits);
-
-      const accountLabel = document.getElementById("accountLabel");
-      if (accountLabel) accountLabel.textContent = Api.mobileMasked || "Account";
+      AuthGate.updateSpaceUi?.();
+      RecentModule.render?.();
+      ActivityModule.render?.();
+      this.applyReadOnlyUi();
 
       const accept =
         data.accept || (Api.allowedExtensions || []).map((e) => `.${e}`).join(",");
       const input = document.getElementById("fileInput");
       if (input && accept) input.setAttribute("accept", accept);
 
-      list.innerHTML = "";
-
-      if (!folders.length && !files.length) {
-        const empty = document.createElement("li");
-        empty.className = "empty-state";
-        empty.textContent = "Empty. Create a folder or upload a file.";
-        list.appendChild(empty);
-        return;
-      }
-
-      folders.forEach((folder, index) => {
-        list.appendChild(this.renderFolderRow(folder, index));
-      });
-      files.forEach((file, index) => {
-        list.appendChild(this.renderFileRow(file, index));
-      });
+      this.renderList();
     } catch (error) {
       list.innerHTML = "";
       const err = document.createElement("li");
@@ -159,11 +355,117 @@ window.FilesModule = {
     }
   },
 
+  matchesType(file) {
+    const t = this.filterType;
+    if (t === "all") return true;
+    if (t === "fav") return this.isFavorite(file.name, false);
+    const mime = file.mime || "";
+    const ext = (file.ext || "").toLowerCase();
+    if (t === "image") return mime.startsWith("image/");
+    if (t === "video") return mime.startsWith("video/");
+    if (t === "audio") return mime.startsWith("audio/");
+    if (t === "doc")
+      return ["pdf", "txt", "csv", "json", "md", "doc", "docx", "xls", "xlsx", "ppt", "pptx"].includes(ext);
+    return true;
+  },
+
+  visibleItems() {
+    const q = this.query;
+    let folders = this.folders.filter((f) => {
+      if (this.filterType === "fav") return this.isFavorite(f.name, true);
+      if (this.filterType !== "all" && this.filterType !== "fav") return false;
+      return !q || f.name.toLowerCase().includes(q);
+    });
+    let files = this.files.filter((f) => {
+      if (!this.matchesType(f)) return false;
+      return !q || f.name.toLowerCase().includes(q);
+    });
+
+    const sortKey = this.sortKey;
+    const byName = (a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
+    const bySize = (a, b) => (a.size || 0) - (b.size || 0);
+    const byDate = (a, b) => (a.mtime || 0) - (b.mtime || 0);
+
+    folders = [...folders].sort(byName);
+    if (sortKey === "name") files = [...files].sort(byName);
+    else if (sortKey === "name-desc") files = [...files].sort((a, b) => byName(b, a));
+    else if (sortKey === "size") files = [...files].sort((a, b) => bySize(b, a));
+    else if (sortKey === "oldest") files = [...files].sort(byDate);
+    else files = [...files].sort((a, b) => byDate(b, a));
+
+    return { folders, files };
+  },
+
+  renderList() {
+    const list = document.getElementById("fileList");
+    if (!list) return;
+    list.innerHTML = "";
+    const { folders, files } = this.visibleItems();
+
+    if (!folders.length && !files.length) {
+      const empty = document.createElement("li");
+      empty.className = "empty-state";
+      if (this.query || this.filterType !== "all") {
+        empty.textContent = "No matches.";
+      } else {
+        empty.innerHTML = "";
+        const p = document.createElement("p");
+        p.textContent = "This folder is empty.";
+        empty.appendChild(p);
+        if (!Api.readOnly) {
+          const actions = document.createElement("div");
+          actions.className = "empty-actions";
+          const up = document.createElement("button");
+          up.type = "button";
+          up.className = "btn upload";
+          up.textContent = "Upload";
+          up.addEventListener("click", () => openUpload());
+          const folder = document.createElement("button");
+          folder.type = "button";
+          folder.className = "btn";
+          folder.textContent = "New folder";
+          folder.addEventListener("click", () => this.createFolder());
+          const note = document.createElement("button");
+          note.type = "button";
+          note.className = "btn ghost";
+          note.textContent = "New note";
+          note.addEventListener("click", () => this.createNote());
+          actions.append(up, folder, note);
+          empty.appendChild(actions);
+        }
+      }
+      list.appendChild(empty);
+      this.updateSelectionBar();
+      return;
+    }
+
+    folders.forEach((folder, index) => {
+      list.appendChild(this.renderFolderRow(folder, index));
+    });
+    files.forEach((file, index) => {
+      list.appendChild(this.renderFileRow(file, index));
+    });
+    this.updateSelectionBar();
+  },
+
   renderFolderRow(folder, index) {
     const li = document.createElement("li");
     li.className = "file-row folder-row";
+    if (this.selected.has(`d:${folder.name}`)) li.classList.add("selected");
+
     const main = document.createElement("div");
     main.className = "file-item-header";
+
+    const check = document.createElement("input");
+    check.type = "checkbox";
+    check.className = "row-check";
+    check.checked = this.selected.has(`d:${folder.name}`);
+    check.addEventListener("click", (e) => e.stopPropagation());
+    check.addEventListener("change", () => {
+      this.toggleSelect(`d:${folder.name}`);
+      li.classList.toggle("selected", this.selected.has(`d:${folder.name}`));
+      this.updateSelectionBar();
+    });
 
     const left = document.createElement("button");
     left.type = "button";
@@ -188,21 +490,25 @@ window.FilesModule = {
     meta.append(title, sub);
     left.append(thumb, meta);
 
+    const star = document.createElement("button");
+    star.type = "button";
+    star.className = "star-btn" + (this.isFavorite(folder.name, true) ? " on" : "");
+    star.textContent = this.isFavorite(folder.name, true) ? "★" : "☆";
+    star.title = "Favorite";
+    star.addEventListener("click", (e) => {
+      e.stopPropagation();
+      this.toggleFavorite(folder.name, true);
+    });
+
     const menuId = `folder-menu-${index}`;
     const menuContainer = this.buildMenu(menuId, [
-      {
-        label: "Rename",
-        className: "rename",
-        onClick: () => this.renameItem(folder.name, true),
-      },
-      {
-        label: "Delete",
-        className: "delete",
-        onClick: () => this.deleteItem(folder.name, true),
-      },
+      { label: "Details", className: "view", onClick: () => this.showDetails(folder, true) },
+      { label: "Rename", className: "rename", onClick: () => this.renameItem(folder.name, true) },
+      { label: "Move…", className: "move", onClick: () => this.moveItem(folder.name, true) },
+      { label: "Delete", className: "delete", onClick: () => this.deleteItem(folder.name, true) },
     ]);
 
-    main.append(left, menuContainer);
+    main.append(check, left, star, menuContainer);
     li.appendChild(main);
     return li;
   },
@@ -211,12 +517,26 @@ window.FilesModule = {
     const name = file.name;
     const li = document.createElement("li");
     li.className = "file-row";
+    if (this.selected.has(`f:${name}`)) li.classList.add("selected");
 
     const main = document.createElement("div");
     main.className = "file-item-header";
 
-    const left = document.createElement("div");
-    left.className = "file-main";
+    const check = document.createElement("input");
+    check.type = "checkbox";
+    check.className = "row-check";
+    check.checked = this.selected.has(`f:${name}`);
+    check.addEventListener("click", (e) => e.stopPropagation());
+    check.addEventListener("change", () => {
+      this.toggleSelect(`f:${name}`);
+      li.classList.toggle("selected", this.selected.has(`f:${name}`));
+      this.updateSelectionBar();
+    });
+
+    const left = document.createElement("button");
+    left.type = "button";
+    left.className = "file-main folder-open";
+    left.addEventListener("click", () => PreviewModule.open(file));
 
     const thumbWrap = document.createElement("div");
     thumbWrap.className = "file-thumb";
@@ -244,31 +564,37 @@ window.FilesModule = {
     meta.append(title, sub);
     left.append(thumbWrap, meta);
 
+    const star = document.createElement("button");
+    star.type = "button";
+    star.className = "star-btn" + (this.isFavorite(name, false) ? " on" : "");
+    star.textContent = this.isFavorite(name, false) ? "★" : "☆";
+    star.title = "Favorite";
+    star.addEventListener("click", (e) => {
+      e.stopPropagation();
+      this.toggleFavorite(name, false);
+    });
+
     const menuId = `menu-${index}`;
     const menuContainer = this.buildMenu(menuId, [
-      {
-        label: "Rename",
-        className: "rename",
-        onClick: () => this.renameItem(name, false),
-      },
-      {
-        label: "Delete",
-        className: "delete",
-        onClick: () => this.deleteItem(name, false),
-      },
+      { label: "Preview", className: "view", onClick: () => PreviewModule.open(file) },
+      { label: "Details", className: "view", onClick: () => this.showDetails(file, false) },
+      { label: "Copy link", className: "copy", onClick: () => this.copyLink(file) },
+      { label: "Duplicate", className: "copy", onClick: () => this.duplicateFile(name) },
+      { label: "Move…", className: "move", onClick: () => this.moveItem(name, false) },
+      { label: "Rename", className: "rename", onClick: () => this.renameItem(name, false) },
+      { label: "Delete", className: "delete", onClick: () => this.deleteItem(name, false) },
     ]);
 
-    main.append(left, menuContainer);
+    main.append(check, left, star, menuContainer);
 
     const actions = document.createElement("div");
     actions.className = "file-actions";
 
-    const view = document.createElement("a");
+    const view = document.createElement("button");
+    view.type = "button";
     view.className = "btn view";
-    view.target = "_blank";
-    view.rel = "noopener noreferrer";
     view.textContent = "View";
-    view.href = Api.absoluteUrl(file.viewUrl || file.downloadUrl);
+    view.addEventListener("click", () => PreviewModule.open(file));
 
     const download = document.createElement("a");
     download.className = "btn download";
@@ -313,11 +639,146 @@ window.FilesModule = {
     document.getElementById(menuId)?.classList.toggle("show");
   },
 
+  async copyLink(file) {
+    const url = Api.absoluteUrl(file.downloadUrl || file.viewUrl);
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: file.name, url });
+        ActivityModule.log?.("Shared", file.name);
+        return;
+      } catch (e) {
+        if (e && e.name === "AbortError") return;
+      }
+    }
+    try {
+      await navigator.clipboard.writeText(url);
+      ToastModule.show("Link copied", "success");
+      ActivityModule.log?.("Copied link", file.name);
+    } catch (e) {
+      prompt("Copy this link:", url);
+    }
+  },
+
+  async duplicateFile(name) {
+    try {
+      const res = await Api.request("/copy.php", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name,
+          fromFolder: Api.currentFolder || "",
+          toFolder: Api.currentFolder || "",
+          autoRename: true,
+        }),
+      });
+      ToastModule.show(`Duplicated as ${res.name}`, "success");
+      this.loadFiles();
+    } catch (error) {
+      if (error.authRequired) AuthGate.prompt();
+      ToastModule.show(error.message || "Duplicate failed", "error");
+    }
+  },
+
+  async pickFolder(title) {
+    let folders = [];
+    try {
+      const data = await Api.request("/folders.php");
+      folders = data.folders || [];
+    } catch (e) {
+      ToastModule.show(e.message || "Could not load folders", "error");
+      return null;
+    }
+    return new Promise((resolve) => {
+      const options = folders
+        .map((f) => {
+          const label = f.path === "" ? "(root)" : f.path;
+          const pad = "  ".repeat(f.depth || 0);
+          return `<option value="${f.path}">${pad}${label}</option>`;
+        })
+        .join("");
+      ModalModule.show({
+        title: title || "Move to folder",
+        message: "Choose destination",
+        input: false,
+        html: `<select id="moveFolderSelect" class="modal-select">${options}</select>`,
+        confirmText: "Move here",
+        onConfirm: () => {
+          const sel = document.getElementById("moveFolderSelect");
+          resolve(sel ? sel.value : "");
+        },
+        onCancel: () => resolve(null),
+      });
+      // ModalModule may not support html — fallback prompt
+      setTimeout(() => {
+        if (!document.getElementById("moveFolderSelect")) {
+          const paths = folders.map((f) => (f.path === "" ? "(root)" : f.path)).join("\n");
+          const picked = prompt(`Enter destination folder path:\n${paths}`, Api.currentFolder || "");
+          if (picked === null) resolve(null);
+          else resolve(picked === "(root)" ? "" : picked);
+        }
+      }, 50);
+    });
+  },
+
+  async moveItem(name, isFolder) {
+    const toFolder = await this.pickDestination(name);
+    if (toFolder === null) return;
+    try {
+      await Api.request("/move.php", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name,
+          fromFolder: Api.currentFolder || "",
+          toFolder,
+          isFolder: !!isFolder,
+        }),
+      });
+      ToastModule.show("Moved", "success");
+      this.loadFiles();
+    } catch (error) {
+      if (error.authRequired) AuthGate.prompt();
+      ToastModule.show(error.message || "Move failed", "error");
+    }
+  },
+
+  async pickDestination(excludeName) {
+    let folders = [];
+    try {
+      const data = await Api.request("/folders.php");
+      folders = (data.folders || []).filter((f) => {
+        if (!excludeName) return true;
+        const cur = Api.currentFolder || "";
+        const self = cur === "" ? excludeName : `${cur}/${excludeName}`;
+        return f.path !== self && !String(f.path).startsWith(self + "/");
+      });
+    } catch (e) {
+      ToastModule.show(e.message || "Could not load folders", "error");
+      return null;
+    }
+
+    const labels = folders.map((f) => (f.path === "" ? "(root)" : f.path));
+    return new Promise((resolve) => {
+      ModalModule.show({
+        title: "Move to…",
+        message: "Type destination folder path (blank = root).\n\n" + labels.slice(0, 20).join("\n"),
+        input: true,
+        inputValue: "",
+        confirmText: "Move",
+        onConfirm: (val) => {
+          const v = (val || "").trim();
+          resolve(v === "(root)" ? "" : v);
+        },
+        onCancel: () => resolve(null),
+      });
+    });
+  },
+
   deleteItem(name, isFolder) {
     ModalModule.show({
       title: isFolder ? "Delete folder" : "Delete file",
       message: isFolder
-        ? `Delete empty folder "${name}"?`
+        ? `Delete folder "${name}"? If it has files, confirm again to delete everything inside.`
         : `Delete ${name}?`,
       confirmText: "Delete",
       danger: true,
@@ -333,9 +794,38 @@ window.FilesModule = {
             }),
           });
           ToastModule.show(isFolder ? "Folder deleted" : "File deleted", "success");
+          ActivityModule.log?.("Deleted", name);
           this.loadFiles();
         } catch (error) {
           if (error.authRequired) AuthGate.prompt();
+          if (isFolder && error.code === 409) {
+            ModalModule.show({
+              title: "Folder not empty",
+              message: `Delete "${name}" and everything inside? This cannot be undone.`,
+              confirmText: "Delete all",
+              danger: true,
+              onConfirm: async () => {
+                try {
+                  await Api.request("/delete.php", {
+                    method: "DELETE",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      fileName: name,
+                      folder: Api.currentFolder || "",
+                      isFolder: true,
+                      recursive: true,
+                    }),
+                  });
+                  ToastModule.show("Folder deleted", "success");
+                  ActivityModule.log?.("Deleted folder tree", name);
+                  this.loadFiles();
+                } catch (e2) {
+                  ToastModule.show(e2.message || "Delete failed", "error");
+                }
+              },
+            });
+            return;
+          }
           ToastModule.show(error.message || "Delete failed", "error");
         }
       },
@@ -369,5 +859,109 @@ window.FilesModule = {
         }
       },
     });
+  },
+
+  selectedItems() {
+    const items = [];
+    this.selected.forEach((key) => {
+      const isFolder = key.startsWith("d:");
+      const name = key.slice(2);
+      items.push({ name, isFolder });
+    });
+    return items;
+  },
+
+  batchDelete() {
+    const items = this.selectedItems();
+    if (!items.length) return;
+    ModalModule.show({
+      title: "Delete selected",
+      message: `Delete ${items.length} item(s)? Empty folders only.`,
+      confirmText: "Delete",
+      danger: true,
+      onConfirm: async () => {
+        try {
+          const res = await Api.request("/batch-delete.php", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              folder: Api.currentFolder || "",
+              items,
+            }),
+          });
+          const failed = (res.failed || []).length;
+          ToastModule.show(
+            failed ? `Deleted ${res.deleted.length}, ${failed} failed` : `Deleted ${res.deleted.length}`,
+            failed ? "error" : "success"
+          );
+          this.clearSelection();
+          this.loadFiles();
+        } catch (error) {
+          if (error.authRequired) AuthGate.prompt();
+          ToastModule.show(error.message || "Batch delete failed", "error");
+        }
+      },
+    });
+  },
+
+  async batchMove() {
+    const items = this.selectedItems();
+    if (!items.length) return;
+    const toFolder = await this.pickDestination();
+    if (toFolder === null) return;
+    let ok = 0;
+    let fail = 0;
+    for (const item of items) {
+      try {
+        await Api.request("/move.php", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: item.name,
+            fromFolder: Api.currentFolder || "",
+            toFolder,
+            isFolder: item.isFolder,
+          }),
+        });
+        ok++;
+      } catch (e) {
+        fail++;
+      }
+    }
+    ToastModule.show(`Moved ${ok}${fail ? `, ${fail} failed` : ""}`, fail ? "error" : "success");
+    this.clearSelection();
+    this.loadFiles();
+  },
+
+  async batchZip() {
+    const files = this.selectedItems().filter((i) => !i.isFolder).map((i) => i.name);
+    if (!files.length) {
+      ToastModule.show("Select files (not folders) to zip", "error");
+      return;
+    }
+    try {
+      const res = await fetch(API_BASE + Api.withSpace("/zip.php"), {
+        method: "POST",
+        headers: Api.authHeaders({ "Content-Type": "application/json" }),
+        body: JSON.stringify({
+          folder: Api.currentFolder || "",
+          names: files,
+        }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || "Zip failed");
+      }
+      const blob = await res.blob();
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = `files-${Date.now()}.zip`;
+      a.click();
+      URL.revokeObjectURL(a.href);
+      ToastModule.show("Zip downloaded", "success");
+    } catch (error) {
+      if (error.authRequired) AuthGate.prompt();
+      ToastModule.show(error.message || "Zip failed", "error");
+    }
   },
 };

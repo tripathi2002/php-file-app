@@ -2,7 +2,7 @@
 $root = dirname(__DIR__, 2);
 require $root . '/config.php';
 
-app_require_auth();
+app_require_space();
 
 header('Cache-Control: no-store');
 
@@ -65,11 +65,13 @@ $quota = app_storage_quota_bytes();
 $user = app_current_user();
 
 app_json([
+    'space' => app_is_public_space() ? 'public' : 'personal',
+    'readOnly' => app_is_public_space() && app_public_readonly(),
     'folder' => $folder,
     'folders' => $folders,
     'files' => $files,
     'items' => array_merge($folders, $files),
-    'mobileMasked' => app_mask_mobile($user['mobile'] ?? ''),
+    'mobileMasked' => $user ? app_mask_mobile($user['mobile'] ?? '') : null,
     'allowedExtensions' => app_allowed_extensions(),
     'accept' => app_accept_attribute(),
     'limits' => [

@@ -1,4 +1,4 @@
-const APP_UI_VERSION = "1.4.0";
+const APP_UI_VERSION = "1.6.0";
 const APP_API_VERSION = "v1";
 
 function detectServerBase() {
@@ -38,9 +38,15 @@ function bindUiEvents() {
   const resumeBtn = document.getElementById("resumeUploadBtn");
   const cancelBtn = document.getElementById("cancelUploadBtn");
   const newFolderBtn = document.getElementById("newFolderBtn");
+  const tabPublic = document.getElementById("tabPublic");
+  const tabPersonal = document.getElementById("tabPersonal");
+  const backBtn = document.getElementById("backToChoicesBtn");
 
   if (accountBtn) accountBtn.addEventListener("click", () => AuthGate.openSettings());
   if (newFolderBtn) newFolderBtn.addEventListener("click", () => FilesModule.createFolder());
+  if (tabPublic) tabPublic.addEventListener("click", () => AuthGate.switchToPublic());
+  if (tabPersonal) tabPersonal.addEventListener("click", () => AuthGate.switchToPersonal());
+  if (backBtn) backBtn.addEventListener("click", () => AuthGate.showChoices());
   if (fab) fab.addEventListener("click", () => openUpload());
   if (overlay) overlay.addEventListener("click", () => closeUpload());
   if (uploadBox) uploadBox.addEventListener("click", (e) => e.stopPropagation());
@@ -53,13 +59,21 @@ function bindUiEvents() {
 async function bootApp() {
   await resolveApiBase();
   bindUiEvents();
+  ThemeModule.init();
   ToastModule.init();
   ModalModule.init();
+  PreviewModule.init();
   AuthGate.init();
   HealthBanner.init();
   FilesModule.init();
   UploadModule.init();
   DragDropModule.init();
+  ShortcutsModule.init();
+  ActivityModule.init();
+  RecentModule.init();
+  OfflineModule.init();
+  PasteUploadModule.init();
+  initPullToRefresh();
 
   const ok = await AuthGate.check();
   if (ok) {
@@ -67,9 +81,18 @@ async function bootApp() {
   }
 }
 
+function canUseCurrentSpace() {
+  if (Api.space === "public") return true;
+  return !!Api.getAccessKey();
+}
+
 function openUpload() {
-  if (!Api.getAccessKey()) {
+  if (!canUseCurrentSpace()) {
     AuthGate.prompt();
+    return;
+  }
+  if (Api.readOnly) {
+    ToastModule.show("Public space is read-only", "error");
     return;
   }
   const fab = document.getElementById("fab");
@@ -83,9 +106,39 @@ function openUpload() {
 function closeUpload() {
   const fab = document.getElementById("fab");
   const overlay = document.getElementById("overlay");
-  fab.classList.remove("hide");
+  if (!Api.readOnly) fab.classList.remove("hide");
   overlay.classList.remove("show");
   overlay.setAttribute("aria-hidden", "true");
+}
+
+function initPullToRefresh() {
+  let startY = 0;
+  let pulling = false;
+  const shell = document.getElementById("appShell");
+  if (!shell) return;
+  shell.addEventListener(
+    "touchstart",
+    (e) => {
+      if (window.scrollY <= 0) {
+        startY = e.touches[0].clientY;
+        pulling = true;
+      }
+    },
+    { passive: true }
+  );
+  shell.addEventListener(
+    "touchend",
+    (e) => {
+      if (!pulling) return;
+      pulling = false;
+      const dy = e.changedTouches[0].clientY - startY;
+      if (dy > 80 && canUseCurrentSpace()) {
+        FilesModule.loadFiles();
+        ToastModule.show("Refreshed", "info");
+      }
+    },
+    { passive: true }
+  );
 }
 
 if (document.readyState === "loading") {

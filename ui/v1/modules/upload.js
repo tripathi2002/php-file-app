@@ -7,10 +7,36 @@ window.UploadModule = {
   totalChunks: 0,
   fileRef: null,
   uploadId: null,
+  queue: [],
   chunkSize: 5 * 1024 * 1024,
 
   init() {
     this.syncControls();
+  },
+
+  handleFiles(files) {
+    const list = Array.from(files || []).filter(Boolean);
+    if (!list.length) return;
+    this.queue = list.slice(1);
+    this.renderQueue();
+    this.handleFile(list[0]);
+  },
+
+  renderQueue() {
+    const el = document.getElementById("uploadQueue");
+    if (!el) return;
+    if (!this.queue.length) {
+      el.hidden = true;
+      el.innerHTML = "";
+      return;
+    }
+    el.hidden = false;
+    el.innerHTML = "";
+    this.queue.forEach((f, i) => {
+      const li = document.createElement("li");
+      li.textContent = `${i + 1}. ${f.name}`;
+      el.appendChild(li);
+    });
   },
 
   newUploadId() {
@@ -145,6 +171,7 @@ window.UploadModule = {
       formData.append("uploadId", this.uploadId);
       formData.append("fileSize", String(file.size));
       formData.append("folder", Api.currentFolder || "");
+      formData.append("space", Api.space || "personal");
 
       try {
         const data = await this.uploadChunk(formData);
@@ -189,6 +216,7 @@ window.UploadModule = {
           totalChunks: this.totalChunks,
           uploadId: this.uploadId,
           folder: Api.currentFolder || "",
+          space: Api.space || "personal",
         }),
       });
     } catch (error) {
@@ -204,6 +232,7 @@ window.UploadModule = {
                 totalChunks: this.totalChunks,
                 uploadId: this.uploadId,
                 folder: Api.currentFolder || "",
+                space: Api.space || "personal",
                 overwrite: true,
               }),
             });
@@ -231,9 +260,18 @@ window.UploadModule = {
 
     status.innerText = "Upload Complete";
     ToastModule.show("Upload complete", "success");
+    ActivityModule.log?.("Uploaded", file.name);
     this.isUploading = false;
-    this.reset();
     FilesModule && FilesModule.loadFiles();
+    if (this.queue.length) {
+      const next = this.queue.shift();
+      this.renderQueue();
+      this.reset(false);
+      this.handleFile(next);
+      this.start();
+      return;
+    }
+    this.reset();
   },
 
   async uploadChunk(formData) {
@@ -307,21 +345,25 @@ window.UploadModule = {
     this.reset();
   },
 
-  reset() {
+  reset(clearQueue = true) {
     this.fileRef = null;
     this.currentChunk = 0;
     this.uploadId = null;
     this.isCancelled = false;
     this.isPaused = false;
     this.isUploading = false;
+    if (clearQueue) {
+      this.queue = [];
+      this.renderQueue();
+    }
 
     const input = document.getElementById("fileInput");
     if (input) input.value = "";
     document.getElementById("progressBar").style.width = "0%";
     document.getElementById("status").innerText = "";
     document.getElementById("dropContent").innerHTML = `
-            <p>Tap or Drag file</p>
-            <p>Click to select</p>
+            <p>Tap or Drag files</p>
+            <p>Click to select (multiple OK)</p>
         `;
     this.syncControls();
   },

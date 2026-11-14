@@ -2,7 +2,8 @@
 $root = dirname(__DIR__, 2);
 require $root . '/config.php';
 
-app_require_auth();
+app_require_space();
+app_require_writable_space();
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     app_json(['error' => 'Method not allowed'], 405);
@@ -21,12 +22,21 @@ if (str_contains($name, '.')) {
     app_json(['error' => 'Folder name cannot contain a dot'], 400);
 }
 
+if ($parent !== '' && !app_folder_exists($parent)) {
+    app_json(['error' => 'Parent folder not found'], 404);
+}
+
+$depth = $parent === '' ? 1 : (substr_count($parent, '/') + 2);
+if ($depth > 5) {
+    app_json(['error' => 'Folder too deep (max 5 levels)'], 400);
+}
+
 $path = app_folder_path($parent) . $name;
 if (file_exists($path)) {
     app_json(['error' => 'Folder already exists'], 409);
 }
 
-if (!@mkdir($path, 0755, true)) {
+if (!@mkdir($path, 0755, false)) {
     app_json(['error' => 'Could not create folder'], 500);
 }
 

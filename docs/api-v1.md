@@ -2,69 +2,58 @@
 
 Base URL: `{SERVER}/api/v1/`
 
-## Auth (required)
+## Space + auth
 
-If no access key exists under `tokens/`, every protected endpoint returns `503` with `setupRequired: true`.
+Send space on every file op:
 
-Otherwise send:
+- Header `X-Space: public` or `personal` (also `?space=` / form field `space`)
+- **Public:** no session; files under `storage/public/`
+- **Personal:** `Authorization: Bearer <sessionToken>` from `session.php` (mobile + PIN)
+- Mutating public ops return `403` with `readOnly: true` when env `PUBLIC_READONLY=1`
 
-`Authorization: Bearer <accessKey>`
+Always open without auth: `health.php`, `version.php`, `session.php`.
 
-Generate (CLI only):
-
-```bash
-php generate-key.php
-```
-
-Public without auth: `health.php`, `version.php`.
-
-Download/view links use **signed URLs** (`exp` + `sig`), not the access key in the query string.
+Download/view links use **signed URLs** (`exp` + `sig`, plus `uid=public` or the user id).
 
 ## List
 
-`GET /api/v1/list.php` → `Cache-Control: no-store`
+`GET /api/v1/list.php?folder=`
 
-```json
-{
-  "files": [
-    {
-      "name": "photo.png",
-      "size": 12345,
-      "mtime": 1710000000,
-      "ext": "png",
-      "mime": "image/png",
-      "viewUrl": "api/v1/download.php?file=photo.png&exp=…&sig=…&view=1",
-      "downloadUrl": "api/v1/download.php?…",
-      "thumbUrl": "api/v1/download.php?…"
-    }
-  ],
-  "allowedExtensions": ["jpg", "png", "mp3", "pptx", "…"],
-  "accept": ".jpg,.png,…",
-  "limits": {
-    "maxUploadBytes": 52428800,
-    "maxUploadMB": 50,
-    "quotaBytes": 524288000,
-    "usedBytes": 12345,
-    "remainingBytes": 524275655
-  }
-}
-```
+Returns `folders`, `files`, `space`, `readOnly`, quota `limits`, signed URLs.
+
+## Folders tree
+
+`GET /api/v1/folders.php` → flat list of folder paths (for move UI).
+
+## Stats
+
+`GET /api/v1/stats.php` → recursive file/folder counts + used bytes.
 
 ## Upload chunk / merge / status / cancel
 
-Same as 1.2, plus:
+- Honor returned `uploadId`
+- Oversized / quota → `413`
+- `cancel` → `200` with `existed: false` if missing
+- Dangerous extensions rejected
 
-- Client must honor returned `uploadId`
-- Oversized files / quota → `413`
-- `cancel` returns `404` when the session does not exist
-- Dangerous extensions anywhere in the name (e.g. `.php.txt`) are rejected
+Legacy `upload.php` is space-aware (same storage as chunked path).
+
+## Move / copy / batch-delete / zip
+
+| Endpoint | Method | Notes |
+|----------|--------|-------|
+| `move.php` | POST | `name`, `fromFolder`, `toFolder`, `isFolder` |
+| `copy.php` | POST | files only; `autoRename` for duplicates |
+| `batch-delete.php` | POST | up to 50 items; empty folders only |
+| `zip.php` | POST | up to 30 files → zip stream |
 
 ## Download
 
-`GET /api/v1/download.php?file=…&exp=…&sig=…&view=0|1`
+`GET /api/v1/download.php?file=…&uid=…&exp=…&sig=…&view=0|1`
 
-Also accepts Bearer auth (for scripted fetches). Always `Cache-Control: private, no-store`.
+Also accepts Bearer auth. `Cache-Control: private, no-store`.
 
 ## Health / version
 
-Unchanged public ops endpoints.
+`health.php` checks storage, public, users, sessions, ZipArchive.  
+`version.php` returns API + UI versions.

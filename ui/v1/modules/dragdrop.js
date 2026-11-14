@@ -19,13 +19,13 @@ window.DragDropModule = {
 
     dropZone.addEventListener("drop", (e) => {
       dropZone.classList.remove("dragover");
-      const file = e.dataTransfer.files[0];
-      UploadModule.handleFile(file);
+      const files = Array.from(e.dataTransfer.files || []);
+      UploadModule.handleFiles(files);
     });
 
     fileInput.addEventListener("change", (e) => {
-      const file = e.target.files[0];
-      UploadModule.handleFile(file);
+      const files = Array.from(e.target.files || []);
+      UploadModule.handleFiles(files);
     });
   },
 

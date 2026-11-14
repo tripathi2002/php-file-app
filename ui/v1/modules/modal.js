@@ -42,6 +42,7 @@ window.ModalModule = {
       message = "",
       input = false,
       inputValue = "",
+      html = "",
       confirmText = "Confirm",
       cancelText = "Cancel",
       danger = false,
@@ -55,7 +56,20 @@ window.ModalModule = {
     this.previousFocus = document.activeElement;
 
     modal.querySelector("#modalTitle").textContent = title;
-    modal.querySelector("#modalMessage").textContent = message;
+    const msgEl = modal.querySelector("#modalMessage");
+    if (html) {
+      msgEl.innerHTML = "";
+      if (message) {
+        const p = document.createElement("p");
+        p.textContent = message;
+        msgEl.appendChild(p);
+      }
+      const wrap = document.createElement("div");
+      wrap.innerHTML = html;
+      msgEl.appendChild(wrap);
+    } else {
+      msgEl.textContent = message;
+    }
 
     const inputBox = modal.querySelector("#modalInput");
     const inputLabel = modal.querySelector("#modalInputLabel");

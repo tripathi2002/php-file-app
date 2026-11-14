@@ -1,30 +1,41 @@
-# Personal File Space
+# File Spaces
 
-Private file areas on shared hosting. Each person enters with **mobile number + PIN** — no CLI keys to copy around.
+Shared **public** space (no login) and private **personal** spaces (mobile + PIN) on shared hosting.
 
-**Current versions:** API `v1` · UI `1.4.0`
+**Current versions:** API `v1` · UI `1.6.0`
 
 ---
 
 ## How people use it
 
 1. Open the app  
-2. Enter mobile number + 4–6 digit PIN  
-3. First time → personal space is created automatically  
-4. Upload files, create folders, view / download / rename / delete  
-5. **Account** → **Leave / Logout** to clear the session on this device  
+2. Choose **Enter public space** (anyone) **or** **Enter personal space**  
+3. Personal: mobile number + 4–6 digit PIN (first time creates the space)  
+4. Upload, preview, organize, zip, and share  
+5. Switch with **Public / Personal** tabs, or **Account** to leave  
 
-Each mobile number gets an isolated private folder under `storage/users/`.
+Public files: `storage/public/`. Personal: `storage/users/<id>/`.
 
 ---
 
-## Features
+## Features (1.6)
 
-- Personal space (mobile + PIN), easy logout  
-- Folders (create, open, rename, delete when empty)  
-- Chunked upload with pause / resume / cancel  
-- Signed short-lived view/download links  
-- Quota bar, type allowlist, private storage  
+- Public + personal spaces, last-folder memory per space  
+- Folders (depth ≤ 5), move, rename, delete, duplicate  
+- Multi-select: batch move / delete / zip download  
+- Chunked multi-file upload queue (pause / resume / cancel)  
+- In-app preview (image, video, audio, PDF, text)  
+- Search, sort, type chips, favorites, list/grid view  
+- Copy / share links (Web Share when available)  
+- Theme: system / light / dark  
+- Activity log + recent files (device-local)  
+- Quota + space stats, pull-to-refresh, offline banner  
+- New note + in-preview text edit (txt/md/csv/json)  
+- Paste images / drop files onto the list to upload  
+- Recursive folder delete (with confirm)  
+- Keyboard: `/` search · `U` upload · `N` folder · `T` note · `R` refresh  
+- Optional public read-only: env `PUBLIC_READONLY=1`  
+- Signed short-lived download URLs, private storage  
 
 ---
 
@@ -32,14 +43,12 @@ Each mobile number gets an isolated private folder under `storage/users/`.
 
 1. Deploy under `/file-app` or SIT `sit/file-app`  
 2. Ensure `storage/` is writable  
-3. Add WordPress passthrough if needed — see [docs/hosting-wordpress.md](docs/hosting-wordpress.md)  
+3. WordPress passthrough — [docs/hosting-wordpress.md](docs/hosting-wordpress.md)  
 
-No access-key generation step for normal use.
-
-Optional env: `STORAGE_PATH`, `MAX_UPLOAD_BYTES`, `STORAGE_QUOTA_BYTES`, `APP_SIGNING_SECRET`.
+Optional env: `STORAGE_PATH`, `MAX_UPLOAD_BYTES`, `STORAGE_QUOTA_BYTES`, `APP_SIGNING_SECRET`, `PUBLIC_READONLY`, `CORS_ALLOWED_ORIGINS`.
 
 ---
 
 ## Health
 
-`GET /api/v1/health.php`
+`GET /api/v1/health.php` — includes public storage + ZipArchive checks.

@@ -4,52 +4,72 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="robots" content="noindex, nofollow" />
-    <title>Personal Files</title>
+    <meta name="color-scheme" content="light dark" />
+    <title>File Spaces</title>
     <link
       rel="icon"
       href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230d98d8'/%3E%3Cpath d='M16 8v12M10 14l6 6 6-6' stroke='white' stroke-width='2.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"
       type="image/svg+xml"
     />
-    <link rel="stylesheet" href="style.css?v=1.4.0" />
+    <link rel="stylesheet" href="style.css?v=1.6.0" />
   </head>
 
   <body>
     <div id="healthBanner" class="health-banner" hidden></div>
+    <div id="offlineBanner" class="health-banner offline-banner" hidden>You are offline</div>
 
     <div id="loginGate" class="login-gate show" aria-hidden="false">
-      <form id="loginForm" class="login-card" autocomplete="on">
-        <h1>Your personal space</h1>
+      <div class="login-card">
+        <h1>File spaces</h1>
         <p class="login-hint">
-          Enter your mobile number and a 4–6 digit PIN. First time? We’ll create
-          your private space automatically.
+          Use the shared public space with no login, or open your private space
+          with mobile + PIN.
         </p>
-        <label class="field-label" for="loginMobile">Mobile number</label>
-        <input
-          id="loginMobile"
-          name="tel"
-          type="tel"
-          inputmode="numeric"
-          autocomplete="username"
-          placeholder="e.g. 9876543210"
-          required
-        />
-        <label class="field-label" for="loginPin">PIN</label>
-        <input
-          id="loginPin"
-          name="pin"
-          type="password"
-          inputmode="numeric"
-          autocomplete="current-password"
-          placeholder="4–6 digits"
-          minlength="4"
-          maxlength="6"
-          required
-        />
-        <p id="loginError" class="login-error" role="alert"></p>
-        <button type="submit" id="loginSubmit" class="btn confirm login-submit">
-          Enter
-        </button>
-      </form>
+
+        <div id="gateChoices">
+          <button type="button" id="enterPublicBtn" class="btn confirm login-submit">
+            Enter public space
+          </button>
+          <button type="button" id="showPersonalBtn" class="btn login-submit secondary-gate">
+            Enter personal space
+          </button>
+          <p class="gate-note">Public files can be seen and changed by anyone.</p>
+        </div>
+
+        <div id="personalFormWrap" class="hide">
+          <form id="loginForm" autocomplete="on">
+            <label class="field-label" for="loginMobile">Mobile number</label>
+            <input
+              id="loginMobile"
+              name="tel"
+              type="tel"
+              inputmode="numeric"
+              autocomplete="username"
+              placeholder="e.g. 9876543210"
+              required
+            />
+            <label class="field-label" for="loginPin">PIN</label>
+            <input
+              id="loginPin"
+              name="pin"
+              type="password"
+              inputmode="numeric"
+              autocomplete="current-password"
+              placeholder="4–6 digits"
+              minlength="4"
+              maxlength="6"
+              required
+            />
+            <p id="loginError" class="login-error" role="alert"></p>
+            <button type="submit" id="loginSubmit" class="btn confirm login-submit">
+              Enter private space
+            </button>
+            <button type="button" id="backToChoicesBtn" class="btn login-submit secondary-gate">
+              Back
+            </button>
+          </form>
+        </div>
+      </div>
     </div>
 
     <a class="skip-link" href="#main">Skip to content</a>
@@ -57,7 +77,8 @@
     <div id="appShell" class="app-shell blurred">
       <main id="main" class="container">
         <header class="app-header">
-          <h1>Files</h1>
+          <h1 id="spaceTitle">Files</h1>
+          <button type="button" id="themeBtn" class="theme-btn" title="Theme">Dark</button>
           <button
             type="button"
             id="accountBtn"
@@ -69,24 +90,90 @@
           </button>
         </header>
 
+        <div class="space-tabs" role="tablist" aria-label="Space">
+          <button type="button" id="tabPublic" class="space-tab" role="tab">
+            Public
+          </button>
+          <button type="button" id="tabPersonal" class="space-tab" role="tab">
+            Personal
+          </button>
+        </div>
+
         <nav id="folderBreadcrumb" class="breadcrumb" aria-label="Folder path"></nav>
 
         <div class="toolbar">
-          <button type="button" id="newFolderBtn" class="btn folder-btn">
-            New folder
-          </button>
+          <button type="button" id="newFolderBtn" class="btn folder-btn">New folder</button>
+          <button type="button" id="newNoteBtn" class="btn folder-btn ghost">New note</button>
+          <button type="button" id="refreshBtn" class="btn folder-btn ghost">Refresh</button>
+          <button type="button" id="viewToggleBtn" class="btn folder-btn ghost">Grid</button>
         </div>
+
+        <div class="list-controls">
+          <label class="search-wrap" for="fileSearch">
+            <span class="visually-hidden">Search</span>
+            <input
+              id="fileSearch"
+              type="search"
+              placeholder="Search files…  (/)"
+              autocomplete="off"
+            />
+          </label>
+          <select id="fileSort" aria-label="Sort">
+            <option value="newest">Newest</option>
+            <option value="oldest">Oldest</option>
+            <option value="name">Name A–Z</option>
+            <option value="name-desc">Name Z–A</option>
+            <option value="size">Largest</option>
+          </select>
+        </div>
+
+        <div class="type-filters" role="group" aria-label="Filter by type">
+          <button type="button" class="chip active" data-type-filter="all">All</button>
+          <button type="button" class="chip" data-type-filter="image">Images</button>
+          <button type="button" class="chip" data-type-filter="video">Video</button>
+          <button type="button" class="chip" data-type-filter="audio">Audio</button>
+          <button type="button" class="chip" data-type-filter="doc">Docs</button>
+          <button type="button" class="chip" data-type-filter="fav">★ Fav</button>
+        </div>
+
+        <div id="selectionBar" class="selection-bar">
+          <span id="selectionCount"></span>
+          <div class="selection-actions">
+            <button type="button" id="selectAllBtn" class="btn ghost">All</button>
+            <button type="button" id="clearSelectBtn" class="btn ghost">Clear</button>
+            <button type="button" id="batchMoveBtn" class="btn">Move</button>
+            <button type="button" id="batchZipBtn" class="btn">Zip</button>
+            <button type="button" id="batchDeleteBtn" class="btn cancel">Delete</button>
+          </div>
+        </div>
+
+        <p id="readOnlyNote" class="readonly-note" hidden>
+          Public space is read-only on this server.
+        </p>
 
         <section class="quota-card" aria-label="Storage usage">
           <div class="quota-track">
             <div id="quotaBar" class="quota-bar"></div>
           </div>
           <p id="quotaLabel" class="quota-label">Storage usage</p>
+          <p id="spaceStats" class="quota-label" hidden></p>
         </section>
+
+        <div id="recentStrip" class="recent-strip" hidden aria-label="Recent files"></div>
 
         <section class="card file-list" aria-label="Uploaded files">
           <ul id="fileList"></ul>
         </section>
+
+        <section class="activity-card" aria-label="Recent activity">
+          <div class="activity-head">
+            <h2>Activity</h2>
+            <button type="button" id="clearActivityBtn" class="btn ghost">Clear</button>
+          </div>
+          <ul id="activityList" class="activity-list"></ul>
+        </section>
+
+        <p class="shortcut-hint">Shortcuts: <kbd>/</kbd> search · <kbd>U</kbd> upload · <kbd>N</kbd> folder · <kbd>T</kbd> note · <kbd>R</kbd> refresh · <kbd>Ctrl</kbd>+<kbd>A</kbd> select</p>
       </main>
 
       <button type="button" id="fab" class="fab hide" aria-label="Open upload panel">
@@ -105,14 +192,15 @@
         <div class="card">
           <div class="drop-zone" id="dropZone">
             <label id="dropContent" for="fileInput" class="drop-content">
-              <p>Tap or Drag file</p>
-              <p>Click to select</p>
+              <p>Tap or Drag files</p>
+              <p>Click to select (multiple OK)</p>
             </label>
           </div>
           <input
             type="file"
             id="fileInput"
             class="file-input visually-hidden"
+            multiple
             accept=".jpg,.jpeg,.png,.gif,.webp,.ico,.pdf,.mp4,.webm,.mp3,.wav,.ogg,.m4a,.zip,.txt,.csv,.json,.md,.doc,.docx,.xls,.xlsx,.ppt,.pptx"
           />
           <br />
@@ -136,10 +224,11 @@
           </div>
 
           <p id="status" role="status" aria-live="polite"></p>
+          <ul id="uploadQueue" class="upload-queue" hidden></ul>
         </div>
       </div>
     </div>
 
-    <script src="../../app.js?v=1.4.0"></script>
+    <script src="../../app.js?v=1.6.0"></script>
   </body>
 </html>

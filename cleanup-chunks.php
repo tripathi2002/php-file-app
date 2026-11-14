@@ -1,6 +1,7 @@
 <?php
 /**
  * CLI cron: delete abandoned chunk sessions older than N hours.
+ * Cleans legacy storage/chunks, public chunks, and each user's chunks.
  * Example: php cleanup-chunks.php --hours=12
  */
 if (PHP_SAPI !== 'cli') {
@@ -23,34 +24,55 @@ $storageRoot = getenv('STORAGE_PATH');
 if (!is_string($storageRoot) || $storageRoot === '') {
     $storageRoot = __DIR__ . '/storage';
 }
-$chunkDir = rtrim($storageRoot, '/\\') . '/chunks';
+$storageRoot = rtrim($storageRoot, '/\\');
 $cutoff = time() - ($hours * 3600);
 $removed = 0;
 
-if (!is_dir($chunkDir)) {
-    echo "No chunks directory.\n";
-    exit(0);
+function cleanup_chunk_tree(string $chunkDir, int $cutoff, int &$removed): void
+{
+    if (!is_dir($chunkDir)) {
+        return;
+    }
+    foreach (scandir($chunkDir) ?: [] as $name) {
+        if ($name === '.' || $name === '..' || $name === '.gitkeep' || $name === '.htaccess') {
+            continue;
+        }
+        $path = $chunkDir . '/' . $name;
+        if (!is_dir($path)) {
+            continue;
+        }
+        $mtime = filemtime($path) ?: 0;
+        if ($mtime > $cutoff) {
+            continue;
+        }
+        foreach (glob($path . '/chunk_*') ?: [] as $file) {
+            @unlink($file);
+        }
+        @unlink($path . '/meta.json');
+        if (@rmdir($path)) {
+            $removed++;
+            echo "Removed $path\n";
+        }
+    }
 }
 
-foreach (scandir($chunkDir) ?: [] as $name) {
-    if ($name === '.' || $name === '..' || $name === '.gitkeep' || $name === '.htaccess') {
-        continue;
+$dirs = [
+    $storageRoot . '/chunks',
+    $storageRoot . '/public/chunks',
+];
+
+$usersDir = $storageRoot . '/users';
+if (is_dir($usersDir)) {
+    foreach (scandir($usersDir) ?: [] as $uid) {
+        if ($uid === '.' || $uid === '..') {
+            continue;
+        }
+        $dirs[] = $usersDir . '/' . $uid . '/chunks';
     }
-    $path = $chunkDir . '/' . $name;
-    if (!is_dir($path)) {
-        continue;
-    }
-    $mtime = filemtime($path) ?: 0;
-    if ($mtime > $cutoff) {
-        continue;
-    }
-    foreach (glob($path . '/chunk_*') ?: [] as $file) {
-        @unlink($file);
-    }
-    if (@rmdir($path)) {
-        $removed++;
-        echo "Removed $name\n";
-    }
+}
+
+foreach ($dirs as $dir) {
+    cleanup_chunk_tree($dir, $cutoff, $removed);
 }
 
 echo "Done. Removed $removed session(s) older than {$hours}h.\n";

@@ -3,6 +3,7 @@ window.Api = {
   allowedExtensions: null,
   currentFolder: "",
   mobileMasked: "",
+  space: localStorage.getItem("fileAppSpace") || "",
 
   getAccessKey() {
     return (
@@ -22,6 +23,12 @@ window.Api = {
     }
   },
 
+  setSpace(space) {
+    this.space = space === "public" ? "public" : "personal";
+    localStorage.setItem("fileAppSpace", this.space);
+    this.currentFolder = "";
+  },
+
   clearSession() {
     this.setAccessKey("");
     this.mobileMasked = "";
@@ -35,7 +42,16 @@ window.Api = {
       headers.Authorization = `Bearer ${key}`;
       headers["X-Access-Key"] = key;
     }
+    if (this.space) {
+      headers["X-Space"] = this.space;
+    }
     return headers;
+  },
+
+  withSpace(path) {
+    if (!this.space) return path;
+    const join = path.includes("?") ? "&" : "?";
+    return `${path}${join}space=${encodeURIComponent(this.space)}`;
   },
 
   absoluteUrl(path) {
@@ -48,7 +64,10 @@ window.Api = {
 
   async request(path, options = {}) {
     const headers = this.authHeaders(options.headers || {});
-    const res = await fetch(API_BASE + path, { ...options, headers });
+    const res = await fetch(API_BASE + this.withSpace(path), {
+      ...options,
+      headers,
+    });
 
     let data = null;
     const text = await res.text();
