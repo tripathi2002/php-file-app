@@ -8,7 +8,7 @@ window.AuthGate = {
     ModalModule.show({
       title: "Access Key",
       message:
-        "This app is locked. Paste the key from `php generate-key.php` on the server.",
+        "This app requires an access key. Generate one on the server with: php generate-key.php",
       input: true,
       inputValue: Api.getAccessKey(),
       confirmText: "Unlock",

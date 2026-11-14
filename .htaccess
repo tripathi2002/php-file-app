@@ -5,20 +5,30 @@
 CacheLookup off
 </IfModule>
 
+# Hide PHP / hosting fingerprint headers when modules allow it
+<IfModule mod_headers.c>
+  Header always unset X-Powered-By
+  Header unset X-Powered-By
+  Header always set X-Content-Type-Options "nosniff"
+  Header always set X-Frame-Options "DENY"
+  Header always set Referrer-Policy "no-referrer"
+  Header always set Permissions-Policy "geolocation=(), microphone=(), camera=()"
+  Header always set Content-Security-Policy "default-src 'self'; img-src 'self' blob: data:; media-src 'self' blob:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+</IfModule>
+
+ServerSignature Off
+
 <IfModule mod_rewrite.c>
 RewriteEngine On
 RewriteBase /file-app/
 
-# Block direct web access to runtime / secret folders
-RewriteRule ^(chunks|tokens|throttle|rate_limit)(/|$) - [F,L]
+# Block direct web access to runtime / private folders
+RewriteRule ^(storage|chunks|tokens|throttle|rate_limit|uploads)(/|$) - [F,L]
 
-# Serve real files and folders (api/v1/*.php, modules, ui/v1, …).
+# Serve real app files (api, modules, UI, …)
 RewriteCond %{REQUEST_FILENAME} -f [OR]
 RewriteCond %{REQUEST_FILENAME} -d
 RewriteRule ^ - [L]
-
-# Serve uploads only via download.php (auth + MIME). Block direct URL access.
-RewriteRule ^uploads/ - [F,L]
 </IfModule>
 
 # -----------------------------
@@ -28,42 +38,16 @@ RewriteRule ^uploads/ - [F,L]
     Require all denied
 </FilesMatch>
 
-<Files "config.php">
+<FilesMatch "^(config|helpers|auth|rate-limit|throttle|generate-key|cleanup-chunks)\.php$">
     Require all denied
-</Files>
+</FilesMatch>
 
-<Files "helpers.php">
-    Require all denied
-</Files>
-
-<Files "auth.php">
-    Require all denied
-</Files>
-
-<Files "rate-limit.php">
-    Require all denied
-</Files>
-
-<Files "throttle.php">
-    Require all denied
-</Files>
-
-# Access keys / cleanup may only run from the CLI
-<Files "generate-key.php">
-    Require all denied
-</Files>
-
-<Files "cleanup-chunks.php">
-    Require all denied
-</Files>
-
-# Apache 2.2 fallback (some Hostinger stacks)
 <IfModule !mod_authz_core.c>
     <FilesMatch "\.(env|ini|log|sh|sql|bak|config)$">
         Order allow,deny
         Deny from all
     </FilesMatch>
-    <FilesMatch "^(config|helpers|auth|rate-limit|throttle|generate-key)\.php$">
+    <FilesMatch "^(config|helpers|auth|rate-limit|throttle|generate-key|cleanup-chunks)\.php$">
         Order allow,deny
         Deny from all
     </FilesMatch>
@@ -78,8 +62,5 @@ php_value post_max_size 50M
 php_value max_execution_time 300
 php_value max_input_time 300
 php_value memory_limit 256M
+php_flag expose_php Off
 </IfModule>
-
-# -----------------------------
-# CORS is handled in config.php via an allowlist (CORS_ALLOWED_ORIGINS).
-# -----------------------------

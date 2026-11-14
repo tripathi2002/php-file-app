@@ -27,7 +27,10 @@ if ($ext !== '' && pathinfo($newName, PATHINFO_EXTENSION) === '') {
 }
 
 if (!app_extension_allowed($newName)) {
-    app_json(['error' => 'Invalid file type'], 400);
+    app_json([
+        'error' => 'Invalid file type',
+        'allowedExtensions' => app_allowed_extensions(),
+    ], 400);
 }
 
 $oldPath = UPLOAD_DIR . $oldName;

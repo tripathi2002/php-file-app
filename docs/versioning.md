@@ -23,7 +23,7 @@ When you ship **v2**, add `api/v2/merge.php` with the new contract. Leave `api/v
 ## Current versions
 
 - **API:** `v1` (implementation in `api/v1/`)
-- **UI:** `1.2.0` (latest at repo root; snapshot also refreshed in `ui/v1/`)
+- **UI:** `1.3.0` (latest at repo root; snapshot also refreshed in `ui/v1/`)
 
 ## Freeze rule
 

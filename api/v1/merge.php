@@ -1,6 +1,5 @@
 <?php
-// v1 merge contract — keep required fields and error shapes stable.
-// Optional: uploadId (preferred chunk folder). Breaking changes → api/v2.
+// v1 merge contract — keep required fields and core success/error shapes stable.
 $root = dirname(__DIR__, 2);
 require $root . '/config.php';
 require $root . '/rate-limit.php';
@@ -18,14 +17,14 @@ $uploadId = app_sanitize_upload_id($data['uploadId'] ?? null);
 $overwrite = !empty($data['overwrite']);
 
 if ($fileName === null || $totalChunks === null || $totalChunks < 1) {
-    app_json([
-        'error' => 'Invalid request',
-        'received' => $data,
-    ], 400);
+    app_json(['error' => 'Invalid request'], 400);
 }
 
 if (!app_extension_allowed($fileName)) {
-    app_json(['error' => 'Invalid file type'], 400);
+    app_json([
+        'error' => 'Invalid file type',
+        'allowedExtensions' => app_allowed_extensions(),
+    ], 400);
 }
 
 $fileKey = app_chunk_key($uploadId, $fileName);
@@ -36,8 +35,37 @@ if (!is_dir($chunkPath)) {
     app_json(['error' => 'Upload session not found'], 404);
 }
 
+$mergedSize = 0;
+for ($i = 0; $i < $totalChunks; $i++) {
+    $chunkFile = $chunkPath . '/chunk_' . $i;
+    if (!file_exists($chunkFile)) {
+        app_json(['error' => "Missing chunk $i"], 400);
+    }
+    $mergedSize += (int) filesize($chunkFile);
+}
+
+$maxBytes = app_max_upload_bytes();
+if ($mergedSize > $maxBytes) {
+    app_json([
+        'error' => 'File too large',
+        'maxBytes' => $maxBytes,
+        'maxMB' => round($maxBytes / (1024 * 1024), 1),
+    ], 413);
+}
+
 if (file_exists($finalPath) && !$overwrite) {
     app_json(['error' => 'File already exists', 'file' => $fileName], 409);
+}
+
+$quota = app_storage_quota_bytes();
+$used = app_dir_size(UPLOAD_DIR);
+$existing = (file_exists($finalPath) && $overwrite) ? (int) filesize($finalPath) : 0;
+if ($used - $existing + $mergedSize > $quota) {
+    app_json([
+        'error' => 'Storage quota exceeded',
+        'usedBytes' => $used,
+        'quotaBytes' => $quota,
+    ], 413);
 }
 
 $out = fopen($finalPath, 'wb');
@@ -47,13 +75,6 @@ if (!$out) {
 
 for ($i = 0; $i < $totalChunks; $i++) {
     $chunkFile = $chunkPath . '/chunk_' . $i;
-
-    if (!file_exists($chunkFile)) {
-        fclose($out);
-        @unlink($finalPath);
-        app_json(['error' => "Missing chunk $i"], 400);
-    }
-
     $in = fopen($chunkFile, 'rb');
     if (!$in) {
         fclose($out);

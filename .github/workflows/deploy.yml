@@ -14,6 +14,22 @@ jobs:
       - name: Point SIT paths
         run: |
           sed -i 's|RewriteBase /file-app/|RewriteBase /sit/file-app/|' .htaccess
+          # Force noindex for SIT
+          if ! grep -q 'noindex' index.html; then
+            sed -i 's|<meta name="viewport"|<meta name="robots" content="noindex, nofollow" />\n    <meta name="viewport"|' index.html
+          fi
+          printf 'User-agent: *\nDisallow: /sit/\nDisallow: /\n' > robots.txt
+
+      - name: Build UI bundle
+        run: |
+          {
+            echo "// Auto-built UI bundle"
+            for f in modules/api.js modules/toast.js modules/modal.js modules/auth-gate.js modules/health-banner.js modules/upload.js modules/files.js modules/dragdrop.js script.js; do
+              echo "/* ===== $f ===== */"
+              cat "$f"
+              echo
+            done
+          } > app.js
 
       - name: Verify FTP_HOST secret
         env:
@@ -65,6 +81,8 @@ jobs:
               --exclude '(^|/)\\.gitignore$' \
               --exclude '(^|/)uploads(/|$)' \
               --exclude '(^|/)chunks(/|$)' \
+              --exclude '(^|/)storage/uploads(/|$)' \
+              --exclude '(^|/)storage/chunks(/|$)' \
               --exclude '(^|/)rate_limit(/|$)' \
               --exclude '(^|/)throttle(/|$)' \
               --exclude '(^|/)tokens(/|$)' \

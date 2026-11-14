@@ -39,6 +39,7 @@ function checkRateLimit($limit = 5, $window = 1) {
     }
 
     $data['count']++;
+    $remaining = max(0, $limit - (int) $data['count']);
 
     ftruncate($fp, 0);
     rewind($fp);
@@ -48,6 +49,9 @@ function checkRateLimit($limit = 5, $window = 1) {
     fclose($fp);
 
     if ($data['count'] > $limit) {
+        app_rate_limit_headers($limit, 0, $window);
         app_json(['error' => 'Too many requests. Slow down.'], 429);
     }
+
+    app_rate_limit_headers($limit, $remaining);
 }

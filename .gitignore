@@ -22,13 +22,22 @@ logs/
 .env.*.local
 
 # -----------------------------
-# Uploads & Chunks
+# Uploads & Chunks (legacy + private storage)
 # -----------------------------
 uploads/*
 !uploads/.gitkeep
+!uploads/.htaccess
 
 chunks/*
 !chunks/.gitkeep
+
+storage/uploads/*
+!storage/uploads/.gitkeep
+!storage/uploads/.htaccess
+
+storage/chunks/*
+!storage/chunks/.gitkeep
+!storage/chunks/.htaccess
 
 # -----------------------------
 # Runtime (rate limit, throttle, auth tokens)

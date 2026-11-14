@@ -1,39 +1,35 @@
 window.Api = {
+  limits: null,
+  allowedExtensions: null,
+
   getAccessKey() {
     return localStorage.getItem("fileAppAccessKey") || "";
   },
 
   setAccessKey(key) {
     const value = (key || "").trim();
-    if (value) {
-      localStorage.setItem("fileAppAccessKey", value);
-    } else {
-      localStorage.removeItem("fileAppAccessKey");
-    }
+    if (value) localStorage.setItem("fileAppAccessKey", value);
+    else localStorage.removeItem("fileAppAccessKey");
   },
 
   authHeaders(extra = {}) {
     const headers = { ...extra };
     const key = this.getAccessKey();
-    if (key) {
-      headers.Authorization = `Bearer ${key}`;
-    }
+    if (key) headers.Authorization = `Bearer ${key}`;
     return headers;
   },
 
-  withKey(url) {
-    const key = this.getAccessKey();
-    if (!key) return url;
-    const join = url.includes("?") ? "&" : "?";
-    return `${url}${join}accessKey=${encodeURIComponent(key)}`;
+  absoluteUrl(path) {
+    if (!path) return "";
+    if (/^https?:\/\//i.test(path)) return path;
+    const base = SERVER.replace(/\/+$/, "");
+    const rel = String(path).replace(/^\/+/, "");
+    return `${base}/${rel}`;
   },
 
   async request(path, options = {}) {
     const headers = this.authHeaders(options.headers || {});
-    const res = await fetch(API_BASE + path, {
-      ...options,
-      headers,
-    });
+    const res = await fetch(API_BASE + path, { ...options, headers });
 
     let data = null;
     const text = await res.text();
@@ -43,10 +39,11 @@ window.Api = {
       data = { error: text || "Invalid server response" };
     }
 
-    if (res.status === 401 || (data && data.authRequired)) {
+    if (res.status === 401 || res.status === 503 || data?.authRequired) {
       const err = new Error(data?.error || "Unauthorized");
-      err.code = 401;
+      err.code = res.status;
       err.authRequired = true;
+      err.setupRequired = !!data?.setupRequired;
       throw err;
     }
 

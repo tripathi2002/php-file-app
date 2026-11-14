@@ -1,8 +1,7 @@
 <?php
 /**
  * CLI cron: delete abandoned chunk sessions older than N hours.
- * Example (Hostinger cron): php /home/USER/public_html/file-app/cleanup-chunks.php
- * Optional: php cleanup-chunks.php --hours=12
+ * Example: php cleanup-chunks.php --hours=12
  */
 if (PHP_SAPI !== 'cli') {
     http_response_code(403);
@@ -18,8 +17,13 @@ foreach ($argv as $arg) {
     }
 }
 
-$root = __DIR__;
-$chunkDir = $root . '/chunks';
+require_once __DIR__ . '/helpers.php';
+
+$storageRoot = getenv('STORAGE_PATH');
+if (!is_string($storageRoot) || $storageRoot === '') {
+    $storageRoot = __DIR__ . '/storage';
+}
+$chunkDir = rtrim($storageRoot, '/\\') . '/chunks';
 $cutoff = time() - ($hours * 3600);
 $removed = 0;
 
@@ -29,7 +33,7 @@ if (!is_dir($chunkDir)) {
 }
 
 foreach (scandir($chunkDir) ?: [] as $name) {
-    if ($name === '.' || $name === '..' || $name === '.gitkeep') {
+    if ($name === '.' || $name === '..' || $name === '.gitkeep' || $name === '.htaccess') {
         continue;
     }
     $path = $chunkDir . '/' . $name;

@@ -17,11 +17,13 @@ $fileKey = $uploadId !== null
     : app_chunk_key(null, $fileName);
 $chunkPath = CHUNK_DIR . $fileKey;
 
-if (is_dir($chunkPath)) {
-    foreach (glob($chunkPath . '/chunk_*') ?: [] as $chunk) {
-        @unlink($chunk);
-    }
-    @rmdir($chunkPath);
+if (!is_dir($chunkPath)) {
+    app_json(['error' => 'Upload session not found', 'cancelled' => false], 404);
 }
 
-app_json(['message' => 'Cancelled']);
+foreach (glob($chunkPath . '/chunk_*') ?: [] as $chunk) {
+    @unlink($chunk);
+}
+@rmdir($chunkPath);
+
+app_json(['message' => 'Cancelled', 'cancelled' => true]);

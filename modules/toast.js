@@ -5,6 +5,7 @@ window.ToastModule = {
     if (this.container) return;
     this.container = document.createElement("div");
     this.container.className = "toast-container";
+    this.container.setAttribute("aria-live", "polite");
     document.body.appendChild(this.container);
   },
 

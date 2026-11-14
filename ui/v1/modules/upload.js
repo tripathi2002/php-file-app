@@ -2,14 +2,16 @@ window.UploadModule = {
   controller: null,
   isCancelled: false,
   isPaused: false,
+  isUploading: false,
   currentChunk: 0,
   totalChunks: 0,
   fileRef: null,
   uploadId: null,
   chunkSize: 5 * 1024 * 1024,
 
-  // File input change is handled by DragDropModule to avoid double-start.
-  init() {},
+  init() {
+    this.syncControls();
+  },
 
   newUploadId() {
     const bytes = new Uint8Array(16);
@@ -17,13 +19,51 @@ window.UploadModule = {
     return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
   },
 
+  syncControls() {
+    const hasFile = !!this.fileRef;
+    const uploading = this.isUploading && !this.isPaused;
+    const paused = this.isUploading && this.isPaused;
+
+    const startBtn = document.getElementById("startUploadBtn");
+    const pauseBtn = document.getElementById("pauseUploadBtn");
+    const resumeBtn = document.getElementById("resumeUploadBtn");
+    const cancelBtn = document.getElementById("cancelUploadBtn");
+
+    if (startBtn) startBtn.disabled = !hasFile || this.isUploading;
+    if (pauseBtn) pauseBtn.disabled = !uploading;
+    if (resumeBtn) resumeBtn.disabled = !paused;
+    if (cancelBtn) cancelBtn.disabled = !hasFile;
+  },
+
   handleFile(file) {
     if (!file) return;
+
+    if (Api.limits?.maxUploadBytes && file.size > Api.limits.maxUploadBytes) {
+      ToastModule.show(
+        `File too large. Max ${Api.limits.maxUploadMB || 50} MB.`,
+        "error"
+      );
+      return;
+    }
+
+    const ext = (file.name.split(".").pop() || "").toLowerCase();
+    if (
+      Array.isArray(Api.allowedExtensions) &&
+      Api.allowedExtensions.length &&
+      !Api.allowedExtensions.includes(ext)
+    ) {
+      ToastModule.show(`File type .${ext} is not allowed.`, "error");
+      return;
+    }
+
     this.fileRef = file;
     this.uploadId = this.newUploadId();
     this.currentChunk = 0;
-    const content = document.getElementById("dropContent");
+    this.isUploading = false;
+    this.isPaused = false;
+    this.isCancelled = false;
 
+    const content = document.getElementById("dropContent");
     content.innerHTML = "";
     const selected = document.createElement("p");
     selected.textContent = "Selected:";
@@ -33,12 +73,22 @@ window.UploadModule = {
     size.style.fontSize = "12px";
     size.textContent = `${(file.size / (1024 * 1024)).toFixed(2)} MB`;
     const changeBtn = document.createElement("button");
+    changeBtn.type = "button";
     changeBtn.className = "btn";
     changeBtn.textContent = "Change File";
-    changeBtn.addEventListener("click", () => this.cancel());
+    changeBtn.addEventListener("click", () => this.clearSelection());
 
     content.append(selected, name, size, document.createElement("br"), changeBtn);
-    this.start();
+    document.getElementById("status").innerText = "Ready to upload";
+    this.syncControls();
+  },
+
+  clearSelection() {
+    if (this.isUploading) {
+      this.cancel();
+      return;
+    }
+    this.reset();
   },
 
   start: async function () {
@@ -46,41 +96,43 @@ window.UploadModule = {
     const status = document.getElementById("status");
     const progressBar = document.getElementById("progressBar");
 
-    if (!file) {
-      return;
-    }
+    if (!file || this.isUploading) return;
 
     this.isPaused = false;
     this.isCancelled = false;
+    this.isUploading = true;
     this.controller = new AbortController();
     this.totalChunks = Math.ceil(file.size / this.chunkSize) || 1;
-    if (!this.uploadId) {
-      this.uploadId = this.newUploadId();
-    }
+    if (!this.uploadId) this.uploadId = this.newUploadId();
+    this.syncControls();
 
     try {
       const state = await Api.request(
         `/status.php?uploadId=${encodeURIComponent(this.uploadId)}&fileName=${encodeURIComponent(file.name)}&totalChunks=${this.totalChunks}`
       );
+      if (state.uploadId) this.uploadId = state.uploadId;
       if (Array.isArray(state.received) && state.received.length) {
-        const next = [...state.received].sort((a, b) => a - b).pop() + 1;
+        const next = Math.max(...state.received) + 1;
         if (next > this.currentChunk) {
           this.currentChunk = next;
           status.innerText = `Resuming from chunk ${this.currentChunk}…`;
         }
       }
     } catch (e) {
-      // status is optional; continue from currentChunk
+      // continue fresh
     }
 
     for (let i = this.currentChunk; i < this.totalChunks; i++) {
       if (this.isCancelled) {
         status.innerText = "Upload Cancelled";
+        this.isUploading = false;
+        this.syncControls();
         return;
       }
       if (this.isPaused) {
         status.innerText = "Upload Paused";
         this.currentChunk = i;
+        this.syncControls();
         return;
       }
 
@@ -91,22 +143,30 @@ window.UploadModule = {
       formData.append("totalChunks", String(this.totalChunks));
       formData.append("fileName", file.name);
       formData.append("uploadId", this.uploadId);
+      formData.append("fileSize", String(file.size));
 
       try {
-        await this.uploadChunk(formData);
+        const data = await this.uploadChunk(formData);
+        if (data?.uploadId) this.uploadId = data.uploadId;
       } catch (error) {
         if (error.name === "AbortError") {
-          status.innerText = this.isCancelled
-            ? "Upload Cancelled"
-            : "Upload Paused";
+          status.innerText = this.isCancelled ? "Upload Cancelled" : "Upload Paused";
           this.currentChunk = i;
         } else if (error.authRequired) {
           status.innerText = "Unlock required — set your access key";
           AuthGate.prompt();
+          this.isUploading = false;
+        } else if (error.code === 413) {
+          const maxMB = error.data?.maxMB || Api.limits?.maxUploadMB || 50;
+          status.innerText = `File too large (max ${maxMB} MB)`;
+          ToastModule.show(status.innerText, "error");
+          this.isUploading = false;
         } else {
           status.innerText = "Upload Failed: " + error.message;
           ToastModule.show(error.message, "error");
+          this.isUploading = false;
         }
+        this.syncControls();
         return;
       }
 
@@ -128,9 +188,7 @@ window.UploadModule = {
       });
     } catch (error) {
       if (error.code === 409) {
-        const overwrite = confirm(
-          `"${file.name}" already exists. Overwrite?`
-        );
+        const overwrite = confirm(`"${file.name}" already exists. Overwrite?`);
         if (overwrite) {
           try {
             await Api.request("/merge.php", {
@@ -146,21 +204,28 @@ window.UploadModule = {
           } catch (e2) {
             status.innerText = "Merge Failed: " + e2.message;
             ToastModule.show(e2.message, "error");
+            this.isUploading = false;
+            this.syncControls();
             return;
           }
         } else {
           status.innerText = "Upload cancelled (file exists)";
+          this.isUploading = false;
+          this.syncControls();
           return;
         }
       } else {
         status.innerText = "Merge Failed: " + error.message;
         ToastModule.show(error.message, "error");
+        this.isUploading = false;
+        this.syncControls();
         return;
       }
     }
 
     status.innerText = "Upload Complete";
     ToastModule.show("Upload complete", "success");
+    this.isUploading = false;
     this.reset();
     FilesModule && FilesModule.loadFiles();
   },
@@ -181,27 +246,33 @@ window.UploadModule = {
       data = { error: text || "Invalid server response" };
     }
 
-    if (res.status === 401 || data?.authRequired) {
+    if (res.status === 401 || res.status === 503 || data?.authRequired) {
       const err = new Error(data?.error || "Unauthorized");
       err.authRequired = true;
       throw err;
     }
 
     if (!res.ok) {
-      throw new Error(data?.error || `Chunk failed (${res.status})`);
+      const err = new Error(data?.error || `Chunk failed (${res.status})`);
+      err.code = res.status;
+      err.data = data;
+      throw err;
     }
 
     return data;
   },
 
   pause() {
-    if (!this.fileRef) return;
+    if (!this.isUploading || this.isPaused) return;
     this.isPaused = true;
     if (this.controller) this.controller.abort();
+    this.syncControls();
   },
 
   resume() {
+    if (!this.fileRef || !this.isPaused) return;
     this.isPaused = false;
+    this.isUploading = false;
     this.start();
   },
 
@@ -223,9 +294,10 @@ window.UploadModule = {
         }),
       });
     } catch (e) {
-      // ignore cancel errors
+      // session may already be gone
     }
 
+    this.isUploading = false;
     this.reset();
   },
 
@@ -235,13 +307,16 @@ window.UploadModule = {
     this.uploadId = null;
     this.isCancelled = false;
     this.isPaused = false;
+    this.isUploading = false;
 
-    document.getElementById("fileInput").value = "";
+    const input = document.getElementById("fileInput");
+    if (input) input.value = "";
     document.getElementById("progressBar").style.width = "0%";
     document.getElementById("status").innerText = "";
     document.getElementById("dropContent").innerHTML = `
             <p>Tap or Drag file</p>
             <p>Click to select</p>
         `;
+    this.syncControls();
   },
 };

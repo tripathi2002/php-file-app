@@ -1,6 +1,8 @@
 # Hosting under WordPress (vibhu.pro)
 
-`file-app` lives in a folder next to WordPress (`public_html/file-app/`). The **site root** `.htaccess` is WordPress + LiteSpeed Cache. Do not edit the `BEGIN LSCACHE` / `BEGIN WordPress` / Wordfence blocks. Add a small passthrough **above** `# BEGIN WordPress` (above `# BEGIN LSCACHE` is even better so LiteSpeed does not cache API 404s).
+`file-app` lives in a folder next to WordPress (`public_html/file-app/`). Uploaded binaries live in private `storage/` under that app (not HTTP-reachable). The **site root** `.htaccess` is WordPress + LiteSpeed Cache. Do not edit the `BEGIN LSCACHE` / `BEGIN WordPress` / Wordfence blocks. Add a small passthrough **above** `# BEGIN WordPress` (above `# BEGIN LSCACHE` is even better so LiteSpeed does not cache API 404s).
+
+After deploy, run `php generate-key.php` once — the API stays locked (`503`) until a key exists.
 
 ## Root `public_html/.htaccess` (add this yourself)
 

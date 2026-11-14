@@ -1,5 +1,4 @@
 <?php
-// Returns which chunks exist for an upload session (resume support).
 $root = dirname(__DIR__, 2);
 require $root . '/config.php';
 

@@ -14,6 +14,14 @@ if (!isset($_FILES['file'])) {
 
 $file = $_FILES['file'];
 if (!isset($file['error']) || $file['error'] !== UPLOAD_ERR_OK) {
+    $code = $file['error'] ?? UPLOAD_ERR_NO_FILE;
+    if (in_array($code, [UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_FORM_SIZE], true)) {
+        app_json([
+            'error' => 'File too large',
+            'maxBytes' => app_max_upload_bytes(),
+            'maxMB' => round(app_max_upload_bytes() / (1024 * 1024), 1),
+        ], 413);
+    }
     app_json(['error' => 'Upload failed'], 400);
 }
 
@@ -23,7 +31,29 @@ if ($fileName === null) {
 }
 
 if (!app_extension_allowed($fileName)) {
-    app_json(['error' => 'Invalid file type'], 400);
+    app_json([
+        'error' => 'Invalid file type',
+        'allowedExtensions' => app_allowed_extensions(),
+    ], 400);
+}
+
+$maxBytes = app_max_upload_bytes();
+if (($file['size'] ?? 0) > $maxBytes) {
+    app_json([
+        'error' => 'File too large',
+        'maxBytes' => $maxBytes,
+        'maxMB' => round($maxBytes / (1024 * 1024), 1),
+    ], 413);
+}
+
+$quota = app_storage_quota_bytes();
+$used = app_dir_size(UPLOAD_DIR);
+if ($used + (int) ($file['size'] ?? 0) > $quota) {
+    app_json([
+        'error' => 'Storage quota exceeded',
+        'usedBytes' => $used,
+        'quotaBytes' => $quota,
+    ], 413);
 }
 
 $targetPath = UPLOAD_DIR . $fileName;

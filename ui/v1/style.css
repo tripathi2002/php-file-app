@@ -9,11 +9,33 @@ body {
   max-width: 720px;
   margin: auto;
   padding: 16px;
+  padding-bottom: 96px;
 }
 
+h1,
 h2 {
   text-align: center;
   margin: 0;
+  font-size: 1.5rem;
+}
+
+.skip-link {
+  position: absolute;
+  left: -999px;
+  top: 0;
+  background: #000;
+  color: #fff;
+  padding: 8px 12px;
+  z-index: 10000;
+}
+
+.skip-link:focus {
+  left: 8px;
+  top: 8px;
+}
+
+body.modal-open {
+  overflow: hidden;
 }
 
 .app-header {
@@ -21,8 +43,33 @@ h2 {
   align-items: center;
   justify-content: center;
   gap: 12px;
-  margin: 12px 0 20px;
+  margin: 12px 0 16px;
   position: relative;
+}
+
+.quota-card {
+  margin-bottom: 16px;
+}
+
+.quota-track {
+  height: 8px;
+  background: #e5e7eb;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.quota-bar {
+  height: 100%;
+  width: 0;
+  background: #0d98d8;
+  transition: width 0.3s ease;
+}
+
+.quota-label {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: #6b7280;
+  text-align: center;
 }
 
 .key-btn {
@@ -210,6 +257,12 @@ h2 {
   transform: translateY(-1px);
 }
 
+.btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  transform: none;
+}
+
 .btn.confirm {
   background: #0d98d8;
   color: white;
@@ -217,6 +270,17 @@ h2 {
 
 .btn.confirm:hover {
   background: #0b84bc;
+}
+
+.btn.confirm.danger,
+.btn.danger {
+  background: #dc2626;
+  color: #fff;
+}
+
+.btn.confirm.danger:hover,
+.btn.danger:hover {
+  background: #b91c1c;
 }
 
 .btn.cancel {
@@ -336,11 +400,65 @@ h2 {
   word-break: break-word;
 }
 
+.file-row {
+  padding-bottom: 4px;
+}
+
 .file-item-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
   gap: 10px;
+}
+
+.file-main {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  flex: 1;
+}
+
+.file-thumb {
+  width: 48px;
+  height: 48px;
+  border-radius: 10px;
+  background: #eef2f7;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.file-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.file-type-badge {
+  font-size: 10px;
+  font-weight: 700;
+  color: #374151;
+  letter-spacing: 0.04em;
+}
+
+.file-meta {
+  min-width: 0;
+}
+
+.file-name {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-sub {
+  font-size: 12px;
+  color: #6b7280;
+  margin-top: 2px;
 }
 
 .file-actions {
@@ -434,16 +552,17 @@ h2 {
   position: fixed;
   right: 20px;
   bottom: 20px;
-  width: 60px;
-  height: 60px;
+  width: 56px;
+  height: 56px;
   border: none;
   border-radius: 50%;
-  font-size: 30px;
+  font-size: 28px;
   cursor: pointer;
   background: #000;
   color: #fff;
-  z-index: 1000;
+  z-index: 40;
   transition: all 0.5s ease;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.18);
 }
 
 .fab:hover {
