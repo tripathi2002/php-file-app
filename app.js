@@ -389,6 +389,8 @@ window.PreviewModule = {
   body: null,
   current: null,
   index: -1,
+  slideshowTimer: null,
+  slideshowList: null,
 
   init() {
     if (document.getElementById("previewOverlay")) return;
@@ -562,7 +564,28 @@ window.PreviewModule = {
     ActivityModule.log?.("Opened", file.name);
   },
 
+  startSlideshow(list) {
+    this.stopSlideshow();
+    this.slideshowList = list || this.fileList().filter(
+      (f) =>
+        (f.mime || "").startsWith("image/") ||
+        ["jpg", "jpeg", "png", "gif", "webp", "ico"].includes((f.ext || "").toLowerCase())
+    );
+    if (!this.slideshowList.length) return;
+    ToastModule.show("Slideshow · arrows to jump · Esc to stop", "info");
+    this.slideshowTimer = setInterval(() => this.nav(1), 3500);
+  },
+
+  stopSlideshow() {
+    if (this.slideshowTimer) {
+      clearInterval(this.slideshowTimer);
+      this.slideshowTimer = null;
+    }
+    this.slideshowList = null;
+  },
+
   close() {
+    this.stopSlideshow();
     if (!this.el) return;
     this.el.classList.remove("show");
     if (this.body) this.body.innerHTML = "";
@@ -1055,11 +1078,54 @@ window.AuthGate = {
       message:
         (Api.mobileMasked
           ? `Signed in as ${Api.mobileMasked}`
-          : "You are in your private space.") + statsLine,
+          : "You are in your private space.") +
+        statsLine +
+        "\n\nConfirm to logout, or cancel then use Change PIN from the next prompt.",
       confirmText: "Leave / Logout",
-      cancelText: "Stay",
+      cancelText: "More…",
       danger: true,
       onConfirm: () => this.logout(),
+      onCancel: () => {
+        ModalModule.show({
+          title: "Account",
+          message: "Change your PIN?",
+          confirmText: "Change PIN",
+          cancelText: "Close",
+          onConfirm: () => this.changePin(),
+        });
+      },
+    });
+  },
+
+  changePin() {
+    ModalModule.show({
+      title: "Current PIN",
+      input: true,
+      inputValue: "",
+      confirmText: "Next",
+      onConfirm: (currentPin) => {
+        if (!currentPin) return;
+        ModalModule.show({
+          title: "New PIN",
+          message: "4–6 digits",
+          input: true,
+          inputValue: "",
+          confirmText: "Save",
+          onConfirm: async (newPin) => {
+            try {
+              await Api.request("/change-pin.php", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ currentPin, newPin }),
+              });
+              ToastModule.show("PIN updated", "success");
+              ActivityModule.log?.("Changed PIN");
+            } catch (e) {
+              ToastModule.show(e.message || "Could not change PIN", "error");
+            }
+          },
+        });
+      },
     });
   },
 
@@ -1710,6 +1776,7 @@ window.FilesModule = {
     document.getElementById("viewToggleBtn")?.addEventListener("click", () => this.toggleView());
     document.getElementById("newNoteBtn")?.addEventListener("click", () => this.createNote());
     document.getElementById("emptyFolderBtn")?.addEventListener("click", () => this.emptyCurrentFolder());
+    document.getElementById("slideshowBtn")?.addEventListener("click", () => this.startSlideshow());
     this.applyViewMode();
   },
 
@@ -1839,7 +1906,18 @@ window.FilesModule = {
     }
   },
 
-  showDetails(file, isFolder = false) {
+  async showDetails(file, isFolder = false) {
+    let hashLine = "";
+    if (!isFolder && (file.size || 0) <= 100 * 1024 * 1024) {
+      try {
+        const data = await Api.request(
+          `/checksum.php?name=${encodeURIComponent(file.name)}&folder=${encodeURIComponent(file.folder || Api.currentFolder || "")}&algo=sha256`
+        );
+        hashLine = `\nSHA-256: ${data.hash}`;
+      } catch (e) {
+        hashLine = `\nSHA-256: unavailable`;
+      }
+    }
     const lines = isFolder
       ? [`Name: ${file.name}`, `Type: Folder`, `Path: ${file.path || file.name}`]
       : [
@@ -1851,11 +1929,25 @@ window.FilesModule = {
         ];
     ModalModule.show({
       title: "Details",
-      message: lines.join("\n"),
+      message: lines.join("\n") + hashLine,
       confirmText: "Close",
       cancelText: "OK",
       onConfirm: () => {},
     });
+  },
+
+  startSlideshow() {
+    const images = (this.files || []).filter(
+      (f) =>
+        (f.mime || "").startsWith("image/") ||
+        ["jpg", "jpeg", "png", "gif", "webp", "ico"].includes((f.ext || "").toLowerCase())
+    );
+    if (!images.length) {
+      ToastModule.show("No images in this folder", "error");
+      return;
+    }
+    PreviewModule.open(images[0]);
+    PreviewModule.startSlideshow?.(images);
   },
 
   typeIcon(ext, mime) {
@@ -1943,7 +2035,10 @@ window.FilesModule = {
     const root = document.createElement("button");
     root.type = "button";
     root.className = "crumb";
-    root.textContent = Api.space === "public" ? "Public" : "My space";
+    const counts = `${this.folders?.length || 0}d · ${this.files?.length || 0}f`;
+    root.textContent =
+      (Api.space === "public" ? "Public" : "My space") +
+      (Api.currentFolder ? "" : ` (${counts})`);
     root.addEventListener("click", () => this.openFolder(""));
     nav.appendChild(root);
 
@@ -2008,7 +2103,6 @@ window.FilesModule = {
   loadFiles: async function () {
     const list = document.getElementById("fileList");
     list.innerHTML = '<div class="loader" role="status" aria-label="Loading"></div>';
-    this.renderBreadcrumb(Api.currentFolder || "");
 
     try {
       const q = Api.currentFolder
@@ -2021,6 +2115,7 @@ window.FilesModule = {
       Api.allowedExtensions = data.allowedExtensions || null;
       Api.readOnly = !!data.readOnly;
       if (data.mobileMasked) Api.mobileMasked = data.mobileMasked;
+      this.renderBreadcrumb(Api.currentFolder || "");
       this.updateQuota(Api.limits);
       AuthGate.updateSpaceUi?.();
       RecentModule.render?.();

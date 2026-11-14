@@ -3,6 +3,8 @@ window.PreviewModule = {
   body: null,
   current: null,
   index: -1,
+  slideshowTimer: null,
+  slideshowList: null,
 
   init() {
     if (document.getElementById("previewOverlay")) return;
@@ -176,7 +178,28 @@ window.PreviewModule = {
     ActivityModule.log?.("Opened", file.name);
   },
 
+  startSlideshow(list) {
+    this.stopSlideshow();
+    this.slideshowList = list || this.fileList().filter(
+      (f) =>
+        (f.mime || "").startsWith("image/") ||
+        ["jpg", "jpeg", "png", "gif", "webp", "ico"].includes((f.ext || "").toLowerCase())
+    );
+    if (!this.slideshowList.length) return;
+    ToastModule.show("Slideshow · arrows to jump · Esc to stop", "info");
+    this.slideshowTimer = setInterval(() => this.nav(1), 3500);
+  },
+
+  stopSlideshow() {
+    if (this.slideshowTimer) {
+      clearInterval(this.slideshowTimer);
+      this.slideshowTimer = null;
+    }
+    this.slideshowList = null;
+  },
+
   close() {
+    this.stopSlideshow();
     if (!this.el) return;
     this.el.classList.remove("show");
     if (this.body) this.body.innerHTML = "";

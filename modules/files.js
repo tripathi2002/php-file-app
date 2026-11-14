@@ -55,6 +55,7 @@ window.FilesModule = {
     document.getElementById("viewToggleBtn")?.addEventListener("click", () => this.toggleView());
     document.getElementById("newNoteBtn")?.addEventListener("click", () => this.createNote());
     document.getElementById("emptyFolderBtn")?.addEventListener("click", () => this.emptyCurrentFolder());
+    document.getElementById("slideshowBtn")?.addEventListener("click", () => this.startSlideshow());
     this.applyViewMode();
   },
 
@@ -184,7 +185,18 @@ window.FilesModule = {
     }
   },
 
-  showDetails(file, isFolder = false) {
+  async showDetails(file, isFolder = false) {
+    let hashLine = "";
+    if (!isFolder && (file.size || 0) <= 100 * 1024 * 1024) {
+      try {
+        const data = await Api.request(
+          `/checksum.php?name=${encodeURIComponent(file.name)}&folder=${encodeURIComponent(file.folder || Api.currentFolder || "")}&algo=sha256`
+        );
+        hashLine = `\nSHA-256: ${data.hash}`;
+      } catch (e) {
+        hashLine = `\nSHA-256: unavailable`;
+      }
+    }
     const lines = isFolder
       ? [`Name: ${file.name}`, `Type: Folder`, `Path: ${file.path || file.name}`]
       : [
@@ -196,11 +208,25 @@ window.FilesModule = {
         ];
     ModalModule.show({
       title: "Details",
-      message: lines.join("\n"),
+      message: lines.join("\n") + hashLine,
       confirmText: "Close",
       cancelText: "OK",
       onConfirm: () => {},
     });
+  },
+
+  startSlideshow() {
+    const images = (this.files || []).filter(
+      (f) =>
+        (f.mime || "").startsWith("image/") ||
+        ["jpg", "jpeg", "png", "gif", "webp", "ico"].includes((f.ext || "").toLowerCase())
+    );
+    if (!images.length) {
+      ToastModule.show("No images in this folder", "error");
+      return;
+    }
+    PreviewModule.open(images[0]);
+    PreviewModule.startSlideshow?.(images);
   },
 
   typeIcon(ext, mime) {
@@ -288,7 +314,10 @@ window.FilesModule = {
     const root = document.createElement("button");
     root.type = "button";
     root.className = "crumb";
-    root.textContent = Api.space === "public" ? "Public" : "My space";
+    const counts = `${this.folders?.length || 0}d · ${this.files?.length || 0}f`;
+    root.textContent =
+      (Api.space === "public" ? "Public" : "My space") +
+      (Api.currentFolder ? "" : ` (${counts})`);
     root.addEventListener("click", () => this.openFolder(""));
     nav.appendChild(root);
 
@@ -353,7 +382,6 @@ window.FilesModule = {
   loadFiles: async function () {
     const list = document.getElementById("fileList");
     list.innerHTML = '<div class="loader" role="status" aria-label="Loading"></div>';
-    this.renderBreadcrumb(Api.currentFolder || "");
 
     try {
       const q = Api.currentFolder
@@ -366,6 +394,7 @@ window.FilesModule = {
       Api.allowedExtensions = data.allowedExtensions || null;
       Api.readOnly = !!data.readOnly;
       if (data.mobileMasked) Api.mobileMasked = data.mobileMasked;
+      this.renderBreadcrumb(Api.currentFolder || "");
       this.updateQuota(Api.limits);
       AuthGate.updateSpaceUi?.();
       RecentModule.render?.();

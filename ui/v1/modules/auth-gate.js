@@ -196,11 +196,54 @@ window.AuthGate = {
       message:
         (Api.mobileMasked
           ? `Signed in as ${Api.mobileMasked}`
-          : "You are in your private space.") + statsLine,
+          : "You are in your private space.") +
+        statsLine +
+        "\n\nConfirm to logout, or cancel then use Change PIN from the next prompt.",
       confirmText: "Leave / Logout",
-      cancelText: "Stay",
+      cancelText: "More…",
       danger: true,
       onConfirm: () => this.logout(),
+      onCancel: () => {
+        ModalModule.show({
+          title: "Account",
+          message: "Change your PIN?",
+          confirmText: "Change PIN",
+          cancelText: "Close",
+          onConfirm: () => this.changePin(),
+        });
+      },
+    });
+  },
+
+  changePin() {
+    ModalModule.show({
+      title: "Current PIN",
+      input: true,
+      inputValue: "",
+      confirmText: "Next",
+      onConfirm: (currentPin) => {
+        if (!currentPin) return;
+        ModalModule.show({
+          title: "New PIN",
+          message: "4–6 digits",
+          input: true,
+          inputValue: "",
+          confirmText: "Save",
+          onConfirm: async (newPin) => {
+            try {
+              await Api.request("/change-pin.php", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ currentPin, newPin }),
+              });
+              ToastModule.show("PIN updated", "success");
+              ActivityModule.log?.("Changed PIN");
+            } catch (e) {
+              ToastModule.show(e.message || "Could not change PIN", "error");
+            }
+          },
+        });
+      },
     });
   },
 
