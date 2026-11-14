@@ -13,6 +13,52 @@ body {
 
 h2 {
   text-align: center;
+  margin: 0;
+}
+
+.app-header {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin: 12px 0 20px;
+  position: relative;
+}
+
+.key-btn {
+  position: absolute;
+  right: 0;
+  border: 1px solid #161515;
+  background: #fff;
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.key-btn:hover {
+  background: #f3f4f6;
+}
+
+.health-banner {
+  background: #fef3c7;
+  color: #92400e;
+  padding: 10px 16px;
+  text-align: center;
+  font-size: 14px;
+  border-bottom: 1px solid #f59e0b;
+}
+
+.health-banner[hidden] {
+  display: none !important;
+}
+
+.empty-state {
+  text-align: center;
+  color: #6b7280;
+  padding: 24px 8px;
+  list-style: none;
 }
 
 .card {
@@ -84,7 +130,7 @@ h2 {
 
 .modal-content {
   width: 100%;
-  max-width: 200px;
+  max-width: 360px;
   background: #ffffff;
   border-radius: 18px;
   padding: 24px;

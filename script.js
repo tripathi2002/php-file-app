@@ -1,19 +1,28 @@
+const APP_UI_VERSION = "1.2.0";
+const APP_API_VERSION = "v1";
+
+function detectServerBase() {
+  const path = window.location.pathname.replace(/\/+$/, "");
+  if (path.endsWith("/index.html")) {
+    return path.slice(0, -"/index.html".length) || "";
+  }
+  // ui/v1 snapshot lives one level under the app root
+  if (/\/ui\/v\d+$/i.test(path)) {
+    return path.replace(/\/ui\/v\d+$/i, "") || "";
+  }
+  return path || "";
+}
+
 const CONFIG = {
-  SERVER: "https://vibhu.pro/file-app",
+  SERVER: `${window.location.origin}${detectServerBase()}`,
 };
 
-// const CONFIG = {
-//   SERVER: "http://localhost/file-app",
-// };
-
-const APP_UI_VERSION = "1.1.1";
-const APP_API_VERSION = "v1";
 const SERVER = CONFIG.SERVER;
 let API_BASE = `${SERVER}/api/${APP_API_VERSION}`;
 
 async function resolveApiBase() {
   try {
-    const res = await fetch(`${API_BASE}/list.php`, { cache: "no-store" });
+    const res = await fetch(`${API_BASE}/version.php`, { cache: "no-store" });
     if (res.ok) return;
   } catch (e) {}
   API_BASE = SERVER;
@@ -31,13 +40,22 @@ function loadScript(src) {
 
 async function init() {
   await resolveApiBase();
-  await loadScript(`${SERVER}/modules/upload.js?v=${APP_UI_VERSION}`);
-  await loadScript(`${SERVER}/modules/files.js?v=${APP_UI_VERSION}`);
-  await loadScript(`${SERVER}/modules/modal.js?v=${APP_UI_VERSION}`);
-  await loadScript(`${SERVER}/modules/dragdrop.js?v=${APP_UI_VERSION}`);
+  const base = `${SERVER}/modules`;
+  const v = APP_UI_VERSION;
 
-  FilesModule.init();
+  await loadScript(`${base}/api.js?v=${v}`);
+  await loadScript(`${base}/toast.js?v=${v}`);
+  await loadScript(`${base}/modal.js?v=${v}`);
+  await loadScript(`${base}/auth-gate.js?v=${v}`);
+  await loadScript(`${base}/health-banner.js?v=${v}`);
+  await loadScript(`${base}/upload.js?v=${v}`);
+  await loadScript(`${base}/files.js?v=${v}`);
+  await loadScript(`${base}/dragdrop.js?v=${v}`);
+
+  ToastModule.init();
   ModalModule.init();
+  HealthBanner.init();
+  FilesModule.init();
   UploadModule.init();
   DragDropModule.init();
 }
@@ -49,7 +67,6 @@ function openUpload() {
 
 function closeUpload() {
   document.getElementById("fab").classList.remove("hide");
-  // document.getElementById("uploadBox").classList.remove("show");
   document.getElementById("overlay").classList.remove("show");
 }
 

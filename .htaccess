@@ -9,34 +9,65 @@ CacheLookup off
 RewriteEngine On
 RewriteBase /file-app/
 
-# Serve real files and folders (api/v1/*.php, modules, ui/v1, …). Do not
-# rewrite them, and do not let later rules map /api/v1/list.php elsewhere.
+# Block direct web access to runtime / secret folders
+RewriteRule ^(chunks|tokens|throttle|rate_limit)(/|$) - [F,L]
+
+# Serve real files and folders (api/v1/*.php, modules, ui/v1, …).
 RewriteCond %{REQUEST_FILENAME} -f [OR]
 RewriteCond %{REQUEST_FILENAME} -d
 RewriteRule ^ - [L]
 
-# Block PHP execution under uploads
-RewriteRule ^uploads/.*\.(php|phtml|php3|php4|php5)$ - [F,L]
+# Serve uploads only via download.php (auth + MIME). Block direct URL access.
+RewriteRule ^uploads/ - [F,L]
 </IfModule>
 
 # -----------------------------
 # Security: block sensitive files
 # -----------------------------
 <FilesMatch "\.(env|ini|log|sh|sql|bak|config)$">
-    Order allow,deny
-    Deny from all
+    Require all denied
 </FilesMatch>
 
 <Files "config.php">
-    Order allow,deny
-    Deny from all
+    Require all denied
 </Files>
 
-# Access keys may only be generated from the CLI: php generate-key.php
-<Files "generate-key.php">
-    Order allow,deny
-    Deny from all
+<Files "helpers.php">
+    Require all denied
 </Files>
+
+<Files "auth.php">
+    Require all denied
+</Files>
+
+<Files "rate-limit.php">
+    Require all denied
+</Files>
+
+<Files "throttle.php">
+    Require all denied
+</Files>
+
+# Access keys / cleanup may only run from the CLI
+<Files "generate-key.php">
+    Require all denied
+</Files>
+
+<Files "cleanup-chunks.php">
+    Require all denied
+</Files>
+
+# Apache 2.2 fallback (some Hostinger stacks)
+<IfModule !mod_authz_core.c>
+    <FilesMatch "\.(env|ini|log|sh|sql|bak|config)$">
+        Order allow,deny
+        Deny from all
+    </FilesMatch>
+    <FilesMatch "^(config|helpers|auth|rate-limit|throttle|generate-key)\.php$">
+        Order allow,deny
+        Deny from all
+    </FilesMatch>
+</IfModule>
 
 # -----------------------------
 # Upload limits (server-side)

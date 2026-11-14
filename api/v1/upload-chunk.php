@@ -4,40 +4,43 @@ require $root . '/config.php';
 require $root . '/rate-limit.php';
 require $root . '/throttle.php';
 
+app_require_auth();
 applyThrottle(200);
 checkRateLimit(5, 1);
 
-$chunkIndex = $_POST['chunkIndex'] ?? null;
-$totalChunks = $_POST['totalChunks'] ?? null;
-$fileName = $_POST['fileName'] ?? null;
+$chunkIndex = app_sanitize_chunk_index($_POST['chunkIndex'] ?? null);
+$totalChunks = app_sanitize_chunk_index($_POST['totalChunks'] ?? null);
+$fileName = app_sanitize_filename($_POST['fileName'] ?? null);
+$uploadId = app_sanitize_upload_id($_POST['uploadId'] ?? null);
 
-if (!isset($_FILES['file']) || $chunkIndex === null || !$fileName) {
-    http_response_code(400);
-    echo json_encode(['error' => 'Invalid request']);
-    exit;
+if (!isset($_FILES['file']) || $chunkIndex === null || $fileName === null) {
+    app_json(['error' => 'Invalid request'], 400);
+}
+
+if ($totalChunks !== null && $chunkIndex >= $totalChunks) {
+    app_json(['error' => 'Invalid chunk index'], 400);
+}
+
+if (!app_extension_allowed($fileName)) {
+    app_json(['error' => 'Invalid file type'], 400);
 }
 
 $file = $_FILES['file'];
-$ext = pathinfo($fileName, PATHINFO_EXTENSION);
-
-$allowed = ['jpg', 'png', 'pdf', 'mp4', 'zip', 'txt'];
-if (!in_array(strtolower($ext), $allowed)) {
-    echo json_encode(['error' => 'Invalid file type']);
-    exit;
+if (!isset($file['error']) || $file['error'] !== UPLOAD_ERR_OK) {
+    app_json(['error' => 'Chunk upload failed'], 400);
 }
 
-$fileKey = md5($fileName);
+$fileKey = app_chunk_key($uploadId, $fileName);
 $chunkPath = CHUNK_DIR . $fileKey;
+app_ensure_dir($chunkPath, 0755);
 
-if (!file_exists($chunkPath)) {
-    mkdir($chunkPath, 0777, true);
+$dest = $chunkPath . '/chunk_' . $chunkIndex;
+if (!move_uploaded_file($file['tmp_name'], $dest)) {
+    app_json(['error' => 'Failed to store chunk'], 500);
 }
 
-move_uploaded_file(
-    $file['tmp_name'],
-    "$chunkPath/chunk_$chunkIndex"
-);
-
-echo json_encode([
+app_json([
     'message' => "Chunk $chunkIndex uploaded",
+    'uploadId' => $fileKey,
+    'chunkIndex' => $chunkIndex,
 ]);

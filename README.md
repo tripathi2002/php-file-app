@@ -1,92 +1,50 @@
-# 📦 PHP Chunk File Upload System
+# PHP Chunk File Upload System
 
-A simple, scalable PHP application for uploading large files using **chunked uploads**, with support for file listing, viewing, and downloading.
+Lightweight PHP app for uploading large files with **chunked uploads**, list/view/download, rename, and delete. Runs on shared hosting (Hostinger + WordPress sibling at vibhu.pro).
 
-**Current versions:** API `v1` · UI `1.1.1` (snapshot at `ui/v1/`)
+**Current versions:** API `v1` · UI `1.2.0`
 
-On vibhu.pro (WordPress at the domain root), see [docs/hosting-wordpress.md](docs/hosting-wordpress.md).
-
-See **[docs/](docs/README.md)** for versioning rules and the v1 API contract. Breaking merge changes must ship as API v2 so older UIs keep working.
-
----
-
-## 🚀 Features
-
-- ✅ Chunk-based file upload (handles large files)
-- ✅ File merge after upload
-- ✅ File listing API
-- ✅ View & download files
-- ✅ Lightweight (no framework)
-- ✅ Works on shared hosting
+Hosting notes: [docs/hosting-wordpress.md](docs/hosting-wordpress.md)  
+API contract: [docs/api-v1.md](docs/api-v1.md) · Versioning: [docs/versioning.md](docs/versioning.md)
 
 ---
 
-## 📁 Project Structure
-files-app/
-│── uploads/ # final merged files
-│── chunks/ # temporary chunk storage
-│── upload-chunk.php # upload chunks API
-│── merge.php # merge chunks API
-│── list.php # list uploaded files
-│── download.php # download file
-│── config.php # config
-│── index.html # UI
-│── .htaccess # server config
+## Features
 
+- Chunked upload with pause / resume / cancel
+- Upload session IDs (safe concurrent same-name uploads)
+- File list, view, download, rename, delete
+- Optional access-key auth (auto-on after you generate a key)
+- Rate limit + throttle on write-heavy endpoints
+- Health check for uptime monitors
 
 ---
 
-## ⚙️ Setup
+## Setup
 
-1. Clone repo:
-bash
-git clone <your-repo-url>
+1. Deploy the repo to `/public_html/file-app` (or SIT `sit/file-app` via GitHub Actions).
+2. Ensure runtime folders exist and are writable: `uploads`, `chunks`, `tokens`, `throttle`, `rate_limit`.
+3. Add the WordPress root passthrough from [docs/hosting-wordpress.md](docs/hosting-wordpress.md).
+4. (Recommended) Issue an access key on the server:
 
-2. Move to server:
-/public_html/files-app
+```bash
+php generate-key.php
+# or: php generate-key.php --days=90
+```
 
-3. Ensure folders exist:
-mkdir uploads chunks
-chmod -R 777 uploads chunks
+Paste the key in the UI (**Key** button). Once any key exists, API auth is required.
 
-4. Add .gitkeep files (optional for Git)
+---
 
-📤 Upload Flow
-File is split into chunks (5MB default)
-Each chunk is uploaded via:
-POST /upload-chunk.php
-After all chunks uploaded:
-POST /merge.php
-Server merges chunks → final file stored in /uploads
+## Upload flow
 
-📡 API Endpoints
-Upload Chunk
-POST /upload-chunk.php
-FormData:
-- file
-- chunkIndex
-- totalChunks
-- fileName
+1. File split into 5MB chunks  
+2. `POST /api/v1/upload-chunk.php` (FormData: file, chunkIndex, totalChunks, fileName, uploadId)  
+3. `POST /api/v1/merge.php` → file lands in `/uploads`  
+4. UI views/downloads via `/api/v1/download.php` (direct `/uploads/` URLs are blocked)
 
-Merge File
-POST /merge.php
-Body (JSON):
-{
-  "fileName": "example.mp4",
-  "totalChunks": 20
-}
+---
 
-List Files
-GET /list.php
-Download File
-GET /download.php?file=example.mp4
+## Health
 
-🌐 UI
-
-Open in browser:
-
-http://your-domain/files-app/
-
-## Health check
-
-`GET /health.php` returns `200` (`status: ok`) when the upload and chunk folders are writable, or `503` otherwise. Point an uptime monitor at it. See `docs/api-v1.md`.
+`GET /api/v1/health.php` → `200` when storage is writable, else `503`.

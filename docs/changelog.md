@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.2.0 (security + UX)
+
+- Access-key auth: auto-enables after `php generate-key.php`; UI **Key** button stores the token.
+- Upload sessions use random `uploadId` (no same-name chunk collisions); resume via `status.php`.
+- Harden APIs: sanitize chunk index / filenames, extension checks, JSON errors + HTTP status codes.
+- Block web access to `chunks/`, `tokens/`, `throttle/`, `rate_limit/`, and direct `/uploads/` (use `download.php`).
+- Rate limit uses file locking; directories created as `0755`.
+- UI: relative server base, XSS-safe file list, toast errors, health banner, overwrite confirm on merge.
+- Removed unused GitHub Pages workflow; Hostinger deploy via lftp.
+
 ## 1.1.2 (API layout)
 
 - Move real endpoint logic into `api/v1/`; root `*.php` files are one-line aliases only.

@@ -2,37 +2,30 @@
 $root = dirname(__DIR__, 2);
 require $root . '/config.php';
 
+app_require_auth();
+
 if ($_SERVER['REQUEST_METHOD'] !== 'DELETE') {
-    http_response_code(405);
-    echo json_encode(['error' => 'Method not allowed']);
-    exit;
+    app_json(['error' => 'Method not allowed'], 405);
 }
 
 $data = json_decode(file_get_contents('php://input'), true) ?? [];
+$fileName = app_sanitize_filename($data['fileName'] ?? ($_GET['file'] ?? null));
 
-$fileName = $data['fileName'] ?? ($_GET['file'] ?? null);
-
-if (!$fileName) {
-    http_response_code(400);
-    echo json_encode(['error' => 'File name required']);
-    exit;
+if ($fileName === null) {
+    app_json(['error' => 'File name required'], 400);
 }
 
-$fileName = basename($fileName);
 $filePath = UPLOAD_DIR . $fileName;
 
 if (!file_exists($filePath)) {
-    http_response_code(404);
-    echo json_encode(['error' => 'File not found']);
-    exit;
+    app_json(['error' => 'File not found'], 404);
 }
 
-if (unlink($filePath)) {
-    echo json_encode([
-        'message' => 'File deleted successfully',
-        'file' => $fileName,
-    ]);
-} else {
-    http_response_code(500);
-    echo json_encode(['error' => 'Delete failed']);
+if (!unlink($filePath)) {
+    app_json(['error' => 'Delete failed'], 500);
 }
+
+app_json([
+    'message' => 'File deleted successfully',
+    'file' => $fileName,
+]);

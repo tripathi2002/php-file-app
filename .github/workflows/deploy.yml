@@ -14,7 +14,6 @@ jobs:
       - name: Point SIT paths
         run: |
           sed -i 's|RewriteBase /file-app/|RewriteBase /sit/file-app/|' .htaccess
-          sed -i 's|https://vibhu.pro/file-app|https://vibhu.pro/sit/file-app|g' script.js ui/v1/script.js
 
       - name: Verify FTP_HOST secret
         env:
@@ -64,7 +63,6 @@ jobs:
               --exclude '(^|/)\\.git(/|$)' \
               --exclude '(^|/)\\.github(/|$)' \
               --exclude '(^|/)\\.gitignore$' \
-              --exclude '(^|/)config\\.php$' \
               --exclude '(^|/)uploads(/|$)' \
               --exclude '(^|/)chunks(/|$)' \
               --exclude '(^|/)rate_limit(/|$)' \

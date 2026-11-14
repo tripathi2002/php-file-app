@@ -1,59 +1,113 @@
 window.FilesModule = {
   init() {
+    document.addEventListener("click", () => {
+      document
+        .querySelectorAll(".dropdown-menu.show")
+        .forEach((menu) => menu.classList.remove("show"));
+    });
     this.loadFiles();
-    // document.addEventListener("DOMContentLoaded", () => {
-      // initial load
-      //   document.addEventListener("click", (e) => {
-      //     if (!e.target.matches(".three-dot-btn")) {
-      //       const menus = document.querySelectorAll(".dropdown-menu");
-      //       menus.forEach((menu) => menu.classList.remove("show"));
-      //     }
-      //   });
-    // });
   },
 
-  // Load uploaded files
   loadFiles: async function () {
     const list = document.getElementById("fileList");
     list.innerHTML = '<div class="loader"></div>';
 
-    const res = await fetch(API_BASE + "/list.php");
-    const files = await res.json();
+    try {
+      const files = await Api.request("/list.php");
+      list.innerHTML = "";
 
-    list.innerHTML = "";
-
-    files.forEach((file, index) => {
-      ``;
-      const li = document.createElement("li");
-      const menuId = `menu-${index}`;
-      // handle potential quotes in filenames
-      const safeFile = file.replace(/'/g, "\\'").replace(/"/g, "&quot;");
-      li.innerHTML = `
-        <div class="file-item-header">
-          <strong>${file}</strong>
-          <div class="menu-container">
-            <button class="three-dot-btn" onclick="FilesModule.toggleMenu('${menuId}', event)">...</button>
-            <div class="dropdown-menu" id="${menuId}">
-              <button class="dropdown-item rename" onclick="FilesModule.renameFile('${safeFile}')">Rename</button>
-              <button class="dropdown-item delete" onclick="FilesModule.deleteFile('${safeFile}')">Delete</button>
-            </div>
-          </div>
-        </div>
-        <div class="file-actions">
-            <a class="btn view" href="${SERVER}/uploads/${file}" target="_blank">View</a>
-            <a class="btn download" href="${API_BASE}/download.php?file=${file}">Download</a>
-        </div>
-        `;
-      list.appendChild(li);
-    });
-  },
-  toggleMenu: function (menuId, event) {
-    event.stopPropagation(); // prevent document click from closing it immediately
-    const menus = document.querySelectorAll(".dropdown-menu");
-    menus.forEach((menu) => {
-      if (menu.id !== menuId) {
-        menu.classList.remove("show");
+      if (!Array.isArray(files) || files.length === 0) {
+        const empty = document.createElement("li");
+        empty.className = "empty-state";
+        empty.textContent = "No files yet. Tap + to upload.";
+        list.appendChild(empty);
+        return;
       }
+
+      files.forEach((file, index) => {
+        const li = document.createElement("li");
+        const menuId = `menu-${index}`;
+
+        const header = document.createElement("div");
+        header.className = "file-item-header";
+
+        const title = document.createElement("strong");
+        title.textContent = file;
+
+        const menuContainer = document.createElement("div");
+        menuContainer.className = "menu-container";
+
+        const menuBtn = document.createElement("button");
+        menuBtn.className = "three-dot-btn";
+        menuBtn.type = "button";
+        menuBtn.textContent = "...";
+        menuBtn.addEventListener("click", (event) => {
+          this.toggleMenu(menuId, event);
+        });
+
+        const menu = document.createElement("div");
+        menu.className = "dropdown-menu";
+        menu.id = menuId;
+
+        const renameBtn = document.createElement("button");
+        renameBtn.className = "dropdown-item rename";
+        renameBtn.type = "button";
+        renameBtn.textContent = "Rename";
+        renameBtn.addEventListener("click", () => this.renameFile(file));
+
+        const deleteBtn = document.createElement("button");
+        deleteBtn.className = "dropdown-item delete";
+        deleteBtn.type = "button";
+        deleteBtn.textContent = "Delete";
+        deleteBtn.addEventListener("click", () => this.deleteFile(file));
+
+        menu.append(renameBtn, deleteBtn);
+        menuContainer.append(menuBtn, menu);
+        header.append(title, menuContainer);
+
+        const actions = document.createElement("div");
+        actions.className = "file-actions";
+
+        const view = document.createElement("a");
+        view.className = "btn view";
+        view.target = "_blank";
+        view.rel = "noopener noreferrer";
+        view.textContent = "View";
+        view.href = Api.withKey(
+          `${API_BASE}/download.php?file=${encodeURIComponent(file)}&view=1`
+        );
+
+        const download = document.createElement("a");
+        download.className = "btn download";
+        download.textContent = "Download";
+        download.href = Api.withKey(
+          `${API_BASE}/download.php?file=${encodeURIComponent(file)}`
+        );
+
+        actions.append(view, download);
+        li.append(header, actions);
+        list.appendChild(li);
+      });
+    } catch (error) {
+      list.innerHTML = "";
+      const err = document.createElement("li");
+      err.className = "empty-state";
+      err.textContent = error.authRequired
+        ? "Unlock with your access key to see files."
+        : error.message || "Failed to load files";
+      list.appendChild(err);
+      if (error.authRequired) {
+        AuthGate.prompt();
+      } else {
+        ToastModule.show(error.message || "Failed to load files", "error");
+      }
+    }
+  },
+
+  toggleMenu: function (menuId, event) {
+    event.stopPropagation();
+    document.querySelectorAll(".dropdown-menu").forEach((menu) => {
+      if (menu.id !== menuId) menu.classList.remove("show");
     });
     const menu = document.getElementById(menuId);
     if (menu) menu.classList.toggle("show");
@@ -66,53 +120,41 @@ window.FilesModule = {
       confirmText: "Delete",
       onConfirm: async () => {
         try {
-          const res = await fetch(API_BASE + "/delete.php", {
+          await Api.request("/delete.php", {
             method: "DELETE",
-            headers: {
-              "Content-Type": "application/json",
-            },
+            headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ fileName }),
           });
-
-          const data = await res.json();
-
-          if (data.error) {
-          } else {
-            this.loadFiles(); // refresh list
-          }
-        } catch (error) {}
+          ToastModule.show("File deleted", "success");
+          this.loadFiles();
+        } catch (error) {
+          if (error.authRequired) AuthGate.prompt();
+          ToastModule.show(error.message || "Delete failed", "error");
+        }
       },
     });
   },
+
   renameFile: function (oldName) {
     ModalModule.show({
       title: "Rename File",
       input: true,
       inputValue: oldName,
       confirmText: "Save",
-
       onConfirm: async (newName) => {
         if (!newName || newName === oldName) return;
-
         try {
-          const res = await fetch(API_BASE + "/rename.php", {
+          await Api.request("/rename.php", {
             method: "PUT",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              oldName,
-              newName,
-            }),
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ oldName, newName }),
           });
-
-          const data = await res.json();
-
-          if (data.error) {
-          } else {
-            FilesModule.loadFiles(); // refresh list
-          }
-        } catch (error) {}
+          ToastModule.show("File renamed", "success");
+          FilesModule.loadFiles();
+        } catch (error) {
+          if (error.authRequired) AuthGate.prompt();
+          ToastModule.show(error.message || "Rename failed", "error");
+        }
       },
     });
   },

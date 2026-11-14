@@ -1,16 +1,25 @@
 <?php
 
 function validateToken($token) {
-    $file = __DIR__ . '/tokens/' . $token . '.json';
+    if (!is_string($token) || !preg_match('/^[a-f0-9]{16,64}$/i', $token)) {
+        return false;
+    }
+
+    $file = __DIR__ . '/tokens/' . strtolower($token) . '.json';
 
     if (!file_exists($file)) {
         return false;
     }
 
-    $data = json_decode(file_get_contents($file), true);
+    $raw = file_get_contents($file);
+    $data = json_decode($raw ?: '', true);
 
-    if ($data['expires'] < time()) {
-        unlink($file); // auto cleanup expired
+    if (!is_array($data) || !isset($data['expires'])) {
+        return false;
+    }
+
+    if ((int) $data['expires'] < time()) {
+        @unlink($file);
         return false;
     }
 

@@ -2,20 +2,26 @@
 $root = dirname(__DIR__, 2);
 require $root . '/config.php';
 
-$data = json_decode(file_get_contents('php://input'), true) ?? [];
-$fileName = $data['fileName'] ?? null;
+app_require_auth();
 
-if (!$fileName) {
-    echo json_encode(['error' => 'Invalid request']);
-    exit;
+$data = json_decode(file_get_contents('php://input'), true) ?? [];
+$fileName = app_sanitize_filename($data['fileName'] ?? null);
+$uploadId = app_sanitize_upload_id($data['uploadId'] ?? null);
+
+if ($fileName === null && $uploadId === null) {
+    app_json(['error' => 'Invalid request'], 400);
 }
 
-$fileKey = md5($fileName);
+$fileKey = $uploadId !== null
+    ? $uploadId
+    : app_chunk_key(null, $fileName);
 $chunkPath = CHUNK_DIR . $fileKey;
 
 if (is_dir($chunkPath)) {
-    array_map('unlink', glob("$chunkPath/chunk_*"));
-    rmdir($chunkPath);
+    foreach (glob($chunkPath . '/chunk_*') ?: [] as $chunk) {
+        @unlink($chunk);
+    }
+    @rmdir($chunkPath);
 }
 
-echo json_encode(['message' => 'Cancelled']);
+app_json(['message' => 'Cancelled']);

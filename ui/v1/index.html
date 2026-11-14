@@ -1,70 +1,80 @@
 <!doctype html>
-<html>
+<html lang="en">
   <head>
+    <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>File Upload</title>
     <link rel="icon" href="../../favicon.png" type="image/png" />
-    <link rel="stylesheet" href="style.css?v=1.1.1" />
+    <link rel="stylesheet" href="style.css?v=1.2.0" />
   </head>
 
   <body>
+    <div id="healthBanner" class="health-banner" hidden></div>
+
     <div class="container">
-      <h2>Files</h2>
+      <header class="app-header">
+        <h2>Files</h2>
+        <button
+          type="button"
+          id="keyBtn"
+          class="key-btn"
+          title="Access key"
+          aria-label="Access key"
+          onclick="AuthGate.openSettings()"
+        >
+          Key
+        </button>
+      </header>
       <div class="card file-list">
-        <!-- <h3>Files</h3> -->
         <ul id="fileList"></ul>
       </div>
     </div>
 
-    <!-- Floating Upload Button -->
-    <button id="fab" class="fab" onclick="openUpload()">+</button>
-    <!-- Overlay -->
+    <button id="fab" class="fab" onclick="openUpload()" aria-label="Upload">+</button>
+
     <div class="overlay" id="overlay" onclick="closeUpload()">
-      <!-- <div class=""> -->
-        <!-- Upload Popup -->
-        <div
-          class="bottom-sheet upload-box"
-          id="uploadBox"
-          onClick="event.stopPropagation()"
-        >
-          <div class="card">
-            <div class="drop-zone" id="dropZone">
-              <label id="dropContent" for="fileInput" class="drop-content">
-                <p>Tap or Drag file</p>
-                <p>Click to select</p>
-              </label>
-            </div>
-            <input
-              type="file"
-              id="fileInput"
-              class="file-input visually-hidden"
-            />
-            <br />
-            <div class="btn-group">
-              <button class="btn upload" onclick="UploadModule.start()">
-                Upload
-              </button>
-              <button class="btn pause" onclick="UploadModule.pause()">
-                Pause
-              </button>
-              <button class="btn resume" onclick="UploadModule.resume()">
-                Resume
-              </button>
-              <button class="btn cancel" onclick="UploadModule.cancel()">
-                Cancel
-              </button>
-            </div>
-
-            <div class="progress">
-              <div class="progress-bar" id="progressBar"></div>
-            </div>
-
-            <p id="status"></p>
+      <div
+        class="bottom-sheet upload-box"
+        id="uploadBox"
+        onclick="event.stopPropagation()"
+      >
+        <div class="card">
+          <div class="drop-zone" id="dropZone">
+            <label id="dropContent" for="fileInput" class="drop-content">
+              <p>Tap or Drag file</p>
+              <p>Click to select</p>
+            </label>
           </div>
+          <input
+            type="file"
+            id="fileInput"
+            class="file-input visually-hidden"
+          />
+          <br />
+          <div class="btn-group">
+            <button class="btn upload" onclick="UploadModule.start()">
+              Upload
+            </button>
+            <button class="btn pause" onclick="UploadModule.pause()">
+              Pause
+            </button>
+            <button class="btn resume" onclick="UploadModule.resume()">
+              Resume
+            </button>
+            <button class="btn cancel" onclick="UploadModule.cancel()">
+              Cancel
+            </button>
+          </div>
+
+          <div class="progress">
+            <div class="progress-bar" id="progressBar"></div>
+          </div>
+
+          <p id="status"></p>
         </div>
       </div>
-    <!-- </div> -->
+    </div>
 
-    <script src="script.js?v=1.1.1"></script>
+    <script src="script.js?v=1.2.0"></script>
   </body>
 </html>

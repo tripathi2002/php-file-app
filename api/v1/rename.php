@@ -2,42 +2,47 @@
 $root = dirname(__DIR__, 2);
 require $root . '/config.php';
 
+app_require_auth();
+
+if (!in_array($_SERVER['REQUEST_METHOD'] ?? '', ['PUT', 'POST'], true)) {
+    app_json(['error' => 'Method not allowed'], 405);
+}
+
 $data = json_decode(file_get_contents('php://input'), true) ?? [];
 
-$oldName = $data['oldName'] ?? null;
-$newName = $data['newName'] ?? null;
+$oldName = app_sanitize_filename($data['oldName'] ?? null);
+$newName = app_sanitize_filename($data['newName'] ?? null);
 
-$newName = preg_replace('/[^a-zA-Z0-9._-]/', '', $newName);
+if ($oldName === null || $newName === null) {
+    app_json(['error' => 'Invalid request'], 400);
+}
 
 $ext = pathinfo($oldName, PATHINFO_EXTENSION);
-
-if (!str_contains($newName, '.')) {
+if ($ext !== '' && pathinfo($newName, PATHINFO_EXTENSION) === '') {
     $newName .= '.' . $ext;
+    $newName = app_sanitize_filename($newName);
+    if ($newName === null) {
+        app_json(['error' => 'Invalid request'], 400);
+    }
 }
 
-if (!$oldName || !$newName) {
-    echo json_encode(['error' => 'Invalid request']);
-    exit;
+if (!app_extension_allowed($newName)) {
+    app_json(['error' => 'Invalid file type'], 400);
 }
-
-$oldName = basename($oldName);
-$newName = basename($newName);
 
 $oldPath = UPLOAD_DIR . $oldName;
 $newPath = UPLOAD_DIR . $newName;
 
 if (!file_exists($oldPath)) {
-    echo json_encode(['error' => 'File not found']);
-    exit;
+    app_json(['error' => 'File not found'], 404);
 }
 
 if (file_exists($newPath)) {
-    echo json_encode(['error' => 'File with new name already exists']);
-    exit;
+    app_json(['error' => 'File with new name already exists'], 409);
 }
 
-if (rename($oldPath, $newPath)) {
-    echo json_encode(['message' => 'Renamed successfully']);
-} else {
-    echo json_encode(['error' => 'Rename failed']);
+if (!rename($oldPath, $newPath)) {
+    app_json(['error' => 'Rename failed'], 500);
 }
+
+app_json(['message' => 'Renamed successfully', 'file' => $newName]);
