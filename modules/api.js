@@ -91,6 +91,7 @@ window.Api = {
       );
       err.code = 429;
       err.data = data;
+      LastErrorModule?.remember?.(err);
       throw err;
     }
 
@@ -98,6 +99,7 @@ window.Api = {
       const err = new Error(data?.error || `Request failed (${res.status})`);
       err.code = res.status;
       err.data = data;
+      LastErrorModule?.remember?.(err);
       throw err;
     }
 
