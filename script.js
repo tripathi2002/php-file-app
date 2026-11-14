@@ -1,4 +1,4 @@
-const APP_UI_VERSION = "1.8.0";
+const APP_UI_VERSION = "1.9.0";
 const APP_API_VERSION = "v1";
 
 function detectServerBase() {
@@ -80,6 +80,7 @@ async function bootApp() {
   TrashModule.init();
   ExportModule.init();
   HelpModule.init();
+  StorageInsightModule.init();
   initFolderUpload();
   initZipFolder();
   initPullToRefresh();

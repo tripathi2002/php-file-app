@@ -251,6 +251,8 @@ window.FilesModule = {
     document.getElementById("batchMoveBtn")?.classList.toggle("hide", ro);
     const note = document.getElementById("readOnlyNote");
     if (note) note.hidden = !ro;
+    const pub = document.getElementById("publicWarn");
+    if (pub) pub.hidden = Api.space !== "public";
   },
 
   updateQuota(limits) {

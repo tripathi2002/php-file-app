@@ -1134,6 +1134,45 @@ window.HelpModule = {
 };
 
 
+/* ===== modules\storage-insight.js ===== */
+window.StorageInsightModule = {
+  init() {
+    document.getElementById("storageInsightBtn")?.addEventListener("click", () => this.show());
+  },
+
+  formatSize(bytes) {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+  },
+
+  async show() {
+    try {
+      const data = await Api.request("/large-files.php?limit=15");
+      const lines = (data.items || []).map(
+        (i, idx) =>
+          `${idx + 1}. ${i.name} — ${this.formatSize(i.size)}${i.folder ? " @" + i.folder : ""}`
+      );
+      ModalModule.show({
+        title: "Largest files",
+        message:
+          `Tracking ${data.totalFiles} files (${this.formatSize(data.totalBytes)})\n\n` +
+          (lines.join("\n") || "No files yet"),
+        confirmText: "Open top",
+        cancelText: "Close",
+        onConfirm: () => {
+          const top = (data.items || [])[0];
+          if (!top) return;
+          FilesModule.openFolder(top.folder || "");
+        },
+      });
+    } catch (e) {
+      ToastModule.show(e.message || "Could not load insight", "error");
+    }
+  },
+};
+
+
 /* ===== modules\auth-gate.js ===== */
 window.AuthGate = {
   el: null,
@@ -2254,6 +2293,8 @@ window.FilesModule = {
     document.getElementById("batchMoveBtn")?.classList.toggle("hide", ro);
     const note = document.getElementById("readOnlyNote");
     if (note) note.hidden = !ro;
+    const pub = document.getElementById("publicWarn");
+    if (pub) pub.hidden = Api.space !== "public";
   },
 
   updateQuota(limits) {
@@ -3203,7 +3244,7 @@ window.ShortcutsModule = {
 
 
 /* ===== script.js ===== */
-const APP_UI_VERSION = "1.8.0";
+const APP_UI_VERSION = "1.9.0";
 const APP_API_VERSION = "v1";
 
 function detectServerBase() {
@@ -3285,6 +3326,7 @@ async function bootApp() {
   TrashModule.init();
   ExportModule.init();
   HelpModule.init();
+  StorageInsightModule.init();
   initFolderUpload();
   initZipFolder();
   initPullToRefresh();

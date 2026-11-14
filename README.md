@@ -2,7 +2,7 @@
 
 Shared **public** space (no login) and private **personal** spaces (mobile + PIN) on shared hosting.
 
-**Current versions:** API `v1` · UI `1.8.0`
+**Current versions:** API `v1` · UI `1.9.0`
 
 ---
 
@@ -17,6 +17,13 @@ Shared **public** space (no login) and private **personal** spaces (mobile + PIN
 Public files: `storage/public/`. Personal: `storage/users/<id>/`.
 
 ---
+
+## Features (1.9)
+
+- Soft-delete trash with restore / empty  
+- CSV export of current folder  
+- Help sheet (`?`) · public-space warning  
+- Largest-files insight for quota cleanup  
 
 ## Features (1.8)
 
