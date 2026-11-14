@@ -57,20 +57,23 @@ jobs:
             set mirror:set-permissions false;
             open -u \"$FTP_USER\",\"$FTP_PASSWORD\" \"$FTP_HOST\";
             mkdir -p sit/file-app;
+            # Remove any previously uploaded git metadata from the server
+            rm -r -f sit/file-app/.git;
+            rm -f sit/file-app/.gitignore;
             mirror -R --verbose --continue --only-newer --no-perms \
-              --exclude-glob .git* \
-              --exclude-glob .github/ \
-              --exclude-glob config.php \
-              --exclude-glob uploads/ \
-              --exclude-glob chunks/ \
-              --exclude-glob rate_limit/ \
-              --exclude-glob throttle/ \
-              --exclude-glob tokens/ \
-              --exclude-glob node_modules/ \
-              --exclude-glob docs/ \
-              --exclude-glob README.md \
-              --exclude-glob LICENSE \
-              --exclude-glob .gitignore \
+              --exclude '(^|/)\\.git(/|$)' \
+              --exclude '(^|/)\\.github(/|$)' \
+              --exclude '(^|/)\\.gitignore$' \
+              --exclude '(^|/)config\\.php$' \
+              --exclude '(^|/)uploads(/|$)' \
+              --exclude '(^|/)chunks(/|$)' \
+              --exclude '(^|/)rate_limit(/|$)' \
+              --exclude '(^|/)throttle(/|$)' \
+              --exclude '(^|/)tokens(/|$)' \
+              --exclude '(^|/)node_modules(/|$)' \
+              --exclude '(^|/)docs(/|$)' \
+              --exclude '(^|/)README\\.md$' \
+              --exclude '(^|/)LICENSE$' \
               ./ sit/file-app/;
             bye
           "
