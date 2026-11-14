@@ -1,0 +1,35 @@
+name: Deploy Production File App to Hostinger
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.FTP_HOST }}
+          username: ${{ secrets.FTP_USER }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          local-dir: ./
+          server-dir: file-app/
+          exclude: |
+            **/.git*
+            **/.git*/**
+            **/.github/**
+            **/config.php
+            **/uploads/**
+            **/chunks/**
+            **/rate_limit/**
+            **/throttle/**
+            **/tokens/**
+            **/node_modules/**
+            **/docs/**
+            README.md
+            LICENSE

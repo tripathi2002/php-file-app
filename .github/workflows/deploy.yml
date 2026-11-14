@@ -1,0 +1,39 @@
+name: Deploy SIT File App to Hostinger
+
+on:
+  push:
+    branches: [sit/php/v3]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Point SIT paths
+        run: |
+          sed -i 's|RewriteBase /file-app/|RewriteBase /sit/file-app/|' .htaccess
+          sed -i 's|https://vibhu.pro/file-app|https://vibhu.pro/sit/file-app|g' script.js ui/v1/script.js
+
+      - uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.FTP_HOST }}
+          username: ${{ secrets.FTP_USER }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          local-dir: ./
+          server-dir: sit/file-app/
+          exclude: |
+            **/.git*
+            **/.git*/**
+            **/.github/**
+            **/config.php
+            **/uploads/**
+            **/chunks/**
+            **/rate_limit/**
+            **/throttle/**
+            **/tokens/**
+            **/node_modules/**
+            **/docs/**
+            README.md
+            LICENSE
