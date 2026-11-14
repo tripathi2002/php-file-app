@@ -67,7 +67,27 @@ window.FilesModule = {
     document.getElementById("newNoteBtn")?.addEventListener("click", () => this.createNote());
     document.getElementById("emptyFolderBtn")?.addEventListener("click", () => this.emptyCurrentFolder());
     document.getElementById("slideshowBtn")?.addEventListener("click", () => this.startSlideshow());
+    document.getElementById("readmeBtn")?.addEventListener("click", () => this.addReadme());
     this.applyViewMode();
+  },
+
+  async addReadme() {
+    if (Api.readOnly) {
+      ToastModule.show("Public space is read-only", "error");
+      return;
+    }
+    try {
+      await Api.request("/readme-space.php", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ folder: Api.currentFolder || "" }),
+      });
+      ToastModule.show("README.txt ready", "success");
+      ActivityModule.log?.("Added README");
+      this.loadFiles();
+    } catch (e) {
+      ToastModule.show(e.message || "Could not add README", "error");
+    }
   },
 
   emptyCurrentFolder() {
@@ -836,7 +856,8 @@ window.FilesModule = {
     const menuContainer = this.buildMenu(menuId, [
       { label: "Preview", className: "view", onClick: () => PreviewModule.open(file) },
       { label: "Details", className: "view", onClick: () => this.showDetails(file, false) },
-      { label: "Copy link", className: "copy", onClick: () => this.copyLink(file) },
+      { label: "Copy download link", className: "copy", onClick: () => this.copyLink(file, false) },
+      { label: "Copy view link", className: "copy", onClick: () => this.copyLink(file, true) },
       {
         label: "Copy path",
         className: "copy",
