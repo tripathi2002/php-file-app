@@ -238,7 +238,7 @@ window.UploadModule = {
         }
         this.conflictChoice = choice;
         if (choice === "rename") {
-          this.saveAsName = ConflictModule.suggestedName(file.name);
+          this.saveAsName = await ConflictModule.suggestedFromServer(file.name);
         }
       } else {
         this.conflictChoice = null;

@@ -390,6 +390,17 @@ window.ConflictModule = {
     const base = ext ? name.slice(0, -ext.length) : name;
     return `${base} (copy)${ext}`;
   },
+
+  async suggestedFromServer(name) {
+    try {
+      const data = await Api.request(
+        `/safe-name.php?name=${encodeURIComponent(name)}&folder=${encodeURIComponent(Api.currentFolder || "")}`
+      );
+      if (data.suggested) return data.suggested;
+      if (data.available) return name;
+    } catch (e) {}
+    return this.suggestedName(name);
+  },
 };
 
 
@@ -2316,7 +2327,7 @@ window.UploadModule = {
         }
         this.conflictChoice = choice;
         if (choice === "rename") {
-          this.saveAsName = ConflictModule.suggestedName(file.name);
+          this.saveAsName = await ConflictModule.suggestedFromServer(file.name);
         }
       } else {
         this.conflictChoice = null;
