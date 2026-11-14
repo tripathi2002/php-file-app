@@ -1,4 +1,4 @@
-const APP_UI_VERSION = "1.9.1";
+const APP_UI_VERSION = "1.9.2";
 const APP_API_VERSION = "v1";
 
 function detectServerBase() {
@@ -86,6 +86,7 @@ async function bootApp() {
   ScrollTopModule.init();
   DuplicatesModule.init();
   ConfirmNavModule.init();
+  SoundModule.init();
   initMoreMenu();
   initFolderUpload();
   initZipFolder();
