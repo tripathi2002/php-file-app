@@ -107,6 +107,7 @@ async function bootApp() {
   PrintListModule.init();
   FilterPresetsModule.init();
   CopyFolderUrlModule.init();
+  SelectByTypeModule.init();
   initMoreMenu();
   initFolderUpload();
   initZipFolder();
