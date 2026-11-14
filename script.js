@@ -56,9 +56,24 @@ function bindUiEvents() {
   if (cancelBtn) cancelBtn.addEventListener("click", () => UploadModule.cancel());
 }
 
+function applyUrlDeepLink() {
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const space = params.get("space");
+    const folder = params.get("folder");
+    if (space === "public" || space === "personal") {
+      Api.setSpace(space);
+    }
+    if (folder !== null) {
+      Api.currentFolder = folder;
+    }
+  } catch (e) {}
+}
+
 async function bootApp() {
   await resolveApiBase();
   bindUiEvents();
+  applyUrlDeepLink();
   ThemeModule.init();
   DensityModule.init();
   NotifyModule.init();
