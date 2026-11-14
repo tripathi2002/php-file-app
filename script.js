@@ -1,4 +1,4 @@
-const APP_UI_VERSION = "1.9.0";
+const APP_UI_VERSION = "1.9.1";
 const APP_API_VERSION = "v1";
 
 function detectServerBase() {
@@ -81,6 +81,7 @@ async function bootApp() {
   ExportModule.init();
   HelpModule.init();
   StorageInsightModule.init();
+  ClipboardPathModule.init();
   initMoreMenu();
   initFolderUpload();
   initZipFolder();

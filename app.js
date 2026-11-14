@@ -1120,6 +1120,8 @@ window.HelpModule = {
         "S  slideshow",
         "R  refresh",
         "Ctrl+A  select all",
+        "Ctrl+L  copy current folder path",
+        "Shift+click  range select",
         "Del  delete selected",
         "← →  preview prev/next",
         "",
@@ -1169,6 +1171,25 @@ window.StorageInsightModule = {
     } catch (e) {
       ToastModule.show(e.message || "Could not load insight", "error");
     }
+  },
+};
+
+
+/* ===== modules\clipboard-path.js ===== */
+window.ClipboardPathModule = {
+  init() {
+    document.addEventListener("keydown", (e) => {
+      if (!(e.ctrlKey || e.metaKey) || e.key.toLowerCase() !== "l") return;
+      const tag = (e.target?.tagName || "").toLowerCase();
+      if (tag === "input" || tag === "textarea") return;
+      if (document.getElementById("loginGate")?.classList.contains("show")) return;
+      e.preventDefault();
+      const path = Api.currentFolder || "(root)";
+      navigator.clipboard?.writeText(path).then(
+        () => ToastModule.show(`Path copied: ${path}`, "success"),
+        () => prompt("Current folder:", path)
+      );
+    });
   },
 };
 
@@ -2083,6 +2104,7 @@ window.FilesModule = {
   folders: [],
   files: [],
   selected: new Set(),
+  lastSelectedKey: null,
   sortKey: localStorage.getItem("fileAppSort") || "newest",
   filterType: "all",
   query: "",
@@ -3434,7 +3456,7 @@ window.ShortcutsModule = {
 
 
 /* ===== script.js ===== */
-const APP_UI_VERSION = "1.9.0";
+const APP_UI_VERSION = "1.9.1";
 const APP_API_VERSION = "v1";
 
 function detectServerBase() {
@@ -3517,6 +3539,7 @@ async function bootApp() {
   ExportModule.init();
   HelpModule.init();
   StorageInsightModule.init();
+  ClipboardPathModule.init();
   initMoreMenu();
   initFolderUpload();
   initZipFolder();

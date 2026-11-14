@@ -22,6 +22,8 @@ window.HelpModule = {
         "S  slideshow",
         "R  refresh",
         "Ctrl+A  select all",
+        "Ctrl+L  copy current folder path",
+        "Shift+click  range select",
         "Del  delete selected",
         "← →  preview prev/next",
         "",

@@ -2,6 +2,7 @@ window.FilesModule = {
   folders: [],
   files: [],
   selected: new Set(),
+  lastSelectedKey: null,
   sortKey: localStorage.getItem("fileAppSort") || "newest",
   filterType: "all",
   query: "",
