@@ -89,6 +89,7 @@ async function bootApp() {
   SoundModule.init();
   SeedDemoModule.init();
   AutoRefreshModule.init();
+  PrintListModule.init();
   initMoreMenu();
   initFolderUpload();
   initZipFolder();
