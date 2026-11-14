@@ -20,10 +20,12 @@ Public files: `storage/public/`. Personal: `storage/users/<id>/`.
 
 ## Features (1.9)
 
-- Soft-delete trash with restore / empty  
-- CSV export of current folder  
+- Soft-delete trash with restore / empty · hard delete forever  
+- CSV export · More menu overflow · scroll memory  
+- Dynamic extension chips · batch copy links  
 - Help sheet (`?`) · public-space warning  
 - Largest-files insight for quota cleanup  
+- Preflight upload conflict (overwrite / keep both)  
 
 ## Features (1.8)
 

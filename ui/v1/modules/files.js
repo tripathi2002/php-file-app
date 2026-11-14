@@ -53,6 +53,7 @@ window.FilesModule = {
     document.getElementById("batchZipBtn")?.addEventListener("click", () => this.batchZip());
     document.getElementById("batchMoveBtn")?.addEventListener("click", () => this.batchMove());
     document.getElementById("batchFavBtn")?.addEventListener("click", () => this.favoriteSelected());
+    document.getElementById("batchCopyLinksBtn")?.addEventListener("click", () => this.copySelectedLinks());
     document.getElementById("viewToggleBtn")?.addEventListener("click", () => this.toggleView());
     document.getElementById("newNoteBtn")?.addEventListener("click", () => this.createNote());
     document.getElementById("emptyFolderBtn")?.addEventListener("click", () => this.emptyCurrentFolder());
@@ -289,6 +290,8 @@ window.FilesModule = {
     const n = this.selected.size;
     bar.classList.toggle("show", n > 0);
     count.textContent = n ? `${n} selected` : "";
+    const base = Api.space === "public" ? "Public files" : "My files";
+    document.title = n ? `(${n}) ${base}` : base;
   },
 
   clearSelection() {
@@ -541,6 +544,28 @@ window.FilesModule = {
     });
     ToastModule.show(`Favorited ${items.length}`, "success");
     this.renderList();
+  },
+
+  async copySelectedLinks() {
+    const names = this.selectedItems().filter((i) => !i.isFolder).map((i) => i.name);
+    if (!names.length) {
+      ToastModule.show("Select files (not folders)", "error");
+      return;
+    }
+    const urls = names
+      .map((name) => (this.files || []).find((f) => f.name === name))
+      .filter(Boolean)
+      .map((f) => Api.absoluteUrl(f.downloadUrl || f.viewUrl));
+    if (!urls.length) {
+      ToastModule.show("No links available", "error");
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(urls.join("\n"));
+      ToastModule.show(`Copied ${urls.length} link(s)`, "success");
+    } catch (e) {
+      prompt("Links:", urls.join("\n"));
+    }
   },
 
   renderList() {
