@@ -105,16 +105,21 @@
 
         <div class="toolbar">
           <button type="button" id="newFolderBtn" class="btn folder-btn">New folder</button>
-          <button type="button" id="newNoteBtn" class="btn folder-btn ghost">New note</button>
-          <button type="button" id="folderUploadBtn" class="btn folder-btn ghost">Upload folder</button>
-          <button type="button" id="emptyFolderBtn" class="btn folder-btn ghost">Empty</button>
           <button type="button" id="refreshBtn" class="btn folder-btn ghost">Refresh</button>
           <button type="button" id="viewToggleBtn" class="btn folder-btn ghost">Grid</button>
-          <button type="button" id="slideshowBtn" class="btn folder-btn ghost">Slideshow</button>
-          <button type="button" id="trashBtn" class="btn folder-btn ghost">Trash</button>
-          <button type="button" id="exportBtn" class="btn folder-btn ghost">Export</button>
-          <button type="button" id="helpBtn" class="btn folder-btn ghost">?</button>
-          <button type="button" id="storageInsightBtn" class="btn folder-btn ghost">Largest</button>
+          <div class="more-menu">
+            <button type="button" id="moreBtn" class="btn folder-btn ghost" aria-haspopup="true" aria-expanded="false">More</button>
+            <div id="morePanel" class="more-panel hide" role="menu">
+              <button type="button" id="newNoteBtn" role="menuitem">New note</button>
+              <button type="button" id="folderUploadBtn" role="menuitem">Upload folder</button>
+              <button type="button" id="emptyFolderBtn" role="menuitem">Empty folder</button>
+              <button type="button" id="slideshowBtn" role="menuitem">Slideshow</button>
+              <button type="button" id="trashBtn" role="menuitem">Trash</button>
+              <button type="button" id="exportBtn" role="menuitem">Export CSV</button>
+              <button type="button" id="storageInsightBtn" role="menuitem">Largest files</button>
+              <button type="button" id="helpBtn" role="menuitem">Help / shortcuts</button>
+            </div>
+          </div>
         </div>
         <p id="publicWarn" class="public-warn" hidden>
           You are in the shared public space. Anyone can see or change these files.

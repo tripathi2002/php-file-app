@@ -180,8 +180,44 @@ body {
 
 .toolbar {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   margin-bottom: 12px;
+  align-items: center;
+}
+
+.more-menu {
+  position: relative;
+}
+
+.more-panel {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 40;
+  min-width: 180px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 12px 28px var(--shadow);
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+}
+
+.more-panel button {
+  border: none;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  padding: 10px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.more-panel button:hover {
+  background: var(--accent-soft);
 }
 
 .folder-btn {

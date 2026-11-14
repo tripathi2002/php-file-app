@@ -81,6 +81,7 @@ async function bootApp() {
   ExportModule.init();
   HelpModule.init();
   StorageInsightModule.init();
+  initMoreMenu();
   initFolderUpload();
   initZipFolder();
   initPullToRefresh();
@@ -120,6 +121,27 @@ function closeUpload() {
   if (!Api.readOnly) fab.classList.remove("hide");
   overlay.classList.remove("show");
   overlay.setAttribute("aria-hidden", "true");
+}
+
+function initMoreMenu() {
+  const btn = document.getElementById("moreBtn");
+  const panel = document.getElementById("morePanel");
+  if (!btn || !panel) return;
+  btn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    const open = panel.classList.toggle("hide") === false;
+    btn.setAttribute("aria-expanded", open ? "true" : "false");
+  });
+  panel.querySelectorAll("button").forEach((b) => {
+    b.addEventListener("click", () => {
+      panel.classList.add("hide");
+      btn.setAttribute("aria-expanded", "false");
+    });
+  });
+  document.addEventListener("click", () => {
+    panel.classList.add("hide");
+    btn.setAttribute("aria-expanded", "false");
+  });
 }
 
 function initZipFolder() {
