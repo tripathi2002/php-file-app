@@ -1001,6 +1001,28 @@ window.SearchModule = {
 window.TrashModule = {
   init() {
     document.getElementById("trashBtn")?.addEventListener("click", () => this.open());
+    document.getElementById("purgeTrashBtn")?.addEventListener("click", () => this.purgeOld());
+  },
+
+  purgeOld() {
+    ModalModule.show({
+      title: "Purge old trash",
+      message: "Permanently remove trash items older than 7 days in this space?",
+      confirmText: "Purge",
+      danger: true,
+      onConfirm: async () => {
+        try {
+          const res = await Api.request("/purge-expired-trash.php", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ days: 7 }),
+          });
+          ToastModule.show(`Purged ${res.removed || 0} old item(s)`, "success");
+        } catch (e) {
+          ToastModule.show(e.message || "Purge failed", "error");
+        }
+      },
+    });
   },
 
   async softDelete(name) {
