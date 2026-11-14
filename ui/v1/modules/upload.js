@@ -201,6 +201,32 @@ window.UploadModule = {
 
     if (!file || this.isUploading) return;
 
+    // Early conflict check before spending chunk bandwidth
+    try {
+      const probe = await Api.request(
+        `/exists.php?name=${encodeURIComponent(file.name)}&folder=${encodeURIComponent(Api.currentFolder || "")}`
+      );
+      if (probe.exists && probe.isFile) {
+        const choice = ConflictModule
+          ? await ConflictModule.resolve(file.name)
+          : (confirm(`"${file.name}" already exists. Overwrite?`) ? "overwrite" : "cancel");
+        if (choice === "cancel" || choice === null) {
+          status.innerText = "Upload cancelled (file exists)";
+          return;
+        }
+        this.conflictChoice = choice;
+        if (choice === "rename") {
+          this.saveAsName = ConflictModule.suggestedName(file.name);
+        }
+      } else {
+        this.conflictChoice = null;
+        this.saveAsName = null;
+      }
+    } catch (e) {
+      this.conflictChoice = null;
+      this.saveAsName = null;
+    }
+
     this.isPaused = false;
     this.isCancelled = false;
     this.isUploading = true;
@@ -296,17 +322,21 @@ window.UploadModule = {
     }
 
     try {
+      const mergeBody = {
+        fileName: file.name,
+        totalChunks: this.totalChunks,
+        uploadId: this.uploadId,
+        folder: Api.currentFolder || "",
+        space: Api.space || "personal",
+      };
+      if (this.conflictChoice === "overwrite") mergeBody.overwrite = true;
+      if (this.conflictChoice === "rename" && this.saveAsName) mergeBody.saveAs = this.saveAsName;
       await Api.request("/merge.php", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          fileName: file.name,
-          totalChunks: this.totalChunks,
-          uploadId: this.uploadId,
-          folder: Api.currentFolder || "",
-          space: Api.space || "personal",
-        }),
+        body: JSON.stringify(mergeBody),
       });
+      if (this.saveAsName) ToastModule.show(`Saved as ${this.saveAsName}`, "success");
     } catch (error) {
       if (error.code === 409) {
         const choice = ConflictModule

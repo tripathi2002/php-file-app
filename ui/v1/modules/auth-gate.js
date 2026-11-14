@@ -303,8 +303,17 @@ window.AuthGate = {
   },
 
   onReady() {
+    const deep = document.getElementById("deepSearch");
+    if (deep) deep.value = "";
+    document.getElementById("deepSearchPanel")?.classList.add("hide");
+    FilesModule.filterType = "all";
+    document
+      .querySelectorAll("[data-type-filter]")
+      .forEach((b) => b.classList.toggle("active", b.getAttribute("data-type-filter") === "all"));
     FilesModule.loadFiles();
     HealthBanner.check();
     this.updateSpaceUi();
+    RecentModule.render?.();
+    ActivityModule.render?.();
   },
 };

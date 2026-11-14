@@ -1479,9 +1479,18 @@ window.AuthGate = {
   },
 
   onReady() {
+    const deep = document.getElementById("deepSearch");
+    if (deep) deep.value = "";
+    document.getElementById("deepSearchPanel")?.classList.add("hide");
+    FilesModule.filterType = "all";
+    document
+      .querySelectorAll("[data-type-filter]")
+      .forEach((b) => b.classList.toggle("active", b.getAttribute("data-type-filter") === "all"));
     FilesModule.loadFiles();
     HealthBanner.check();
     this.updateSpaceUi();
+    RecentModule.render?.();
+    ActivityModule.render?.();
   },
 };
 
@@ -1747,6 +1756,32 @@ window.UploadModule = {
 
     if (!file || this.isUploading) return;
 
+    // Early conflict check before spending chunk bandwidth
+    try {
+      const probe = await Api.request(
+        `/exists.php?name=${encodeURIComponent(file.name)}&folder=${encodeURIComponent(Api.currentFolder || "")}`
+      );
+      if (probe.exists && probe.isFile) {
+        const choice = ConflictModule
+          ? await ConflictModule.resolve(file.name)
+          : (confirm(`"${file.name}" already exists. Overwrite?`) ? "overwrite" : "cancel");
+        if (choice === "cancel" || choice === null) {
+          status.innerText = "Upload cancelled (file exists)";
+          return;
+        }
+        this.conflictChoice = choice;
+        if (choice === "rename") {
+          this.saveAsName = ConflictModule.suggestedName(file.name);
+        }
+      } else {
+        this.conflictChoice = null;
+        this.saveAsName = null;
+      }
+    } catch (e) {
+      this.conflictChoice = null;
+      this.saveAsName = null;
+    }
+
     this.isPaused = false;
     this.isCancelled = false;
     this.isUploading = true;
@@ -1842,17 +1877,21 @@ window.UploadModule = {
     }
 
     try {
+      const mergeBody = {
+        fileName: file.name,
+        totalChunks: this.totalChunks,
+        uploadId: this.uploadId,
+        folder: Api.currentFolder || "",
+        space: Api.space || "personal",
+      };
+      if (this.conflictChoice === "overwrite") mergeBody.overwrite = true;
+      if (this.conflictChoice === "rename" && this.saveAsName) mergeBody.saveAs = this.saveAsName;
       await Api.request("/merge.php", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          fileName: file.name,
-          totalChunks: this.totalChunks,
-          uploadId: this.uploadId,
-          folder: Api.currentFolder || "",
-          space: Api.space || "personal",
-        }),
+        body: JSON.stringify(mergeBody),
       });
+      if (this.saveAsName) ToastModule.show(`Saved as ${this.saveAsName}`, "success");
     } catch (error) {
       if (error.code === 409) {
         const choice = ConflictModule
@@ -2776,7 +2815,12 @@ window.FilesModule = {
       { label: "Duplicate", className: "copy", onClick: () => this.duplicateFile(name) },
       { label: "Move…", className: "move", onClick: () => this.moveItem(name, false) },
       { label: "Rename", className: "rename", onClick: () => this.renameItem(name, false) },
-      { label: "Delete", className: "delete", onClick: () => this.deleteItem(name, false) },
+      { label: "Trash", className: "delete", onClick: () => this.deleteItem(name, false) },
+      {
+        label: "Delete forever",
+        className: "delete",
+        onClick: () => this.hardDeleteFile(name),
+      },
     ]);
 
     main.append(check, left, star, menuContainer);
@@ -2982,6 +3026,34 @@ window.FilesModule = {
         },
         onCancel: () => resolve(null),
       });
+    });
+  },
+
+  hardDeleteFile(name) {
+    ModalModule.show({
+      title: "Delete forever",
+      message: `Permanently delete "${name}"? This skips trash.`,
+      confirmText: "Delete forever",
+      danger: true,
+      onConfirm: async () => {
+        try {
+          await Api.request("/delete.php", {
+            method: "DELETE",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              fileName: name,
+              folder: Api.currentFolder || "",
+              isFolder: false,
+            }),
+          });
+          ToastModule.show("Deleted forever", "success");
+          ActivityModule.log?.("Hard deleted", name);
+          this.loadFiles();
+        } catch (error) {
+          if (error.authRequired) AuthGate.prompt();
+          ToastModule.show(error.message || "Delete failed", "error");
+        }
+      },
     });
   },
 

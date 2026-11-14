@@ -734,7 +734,12 @@ window.FilesModule = {
       { label: "Duplicate", className: "copy", onClick: () => this.duplicateFile(name) },
       { label: "Move…", className: "move", onClick: () => this.moveItem(name, false) },
       { label: "Rename", className: "rename", onClick: () => this.renameItem(name, false) },
-      { label: "Delete", className: "delete", onClick: () => this.deleteItem(name, false) },
+      { label: "Trash", className: "delete", onClick: () => this.deleteItem(name, false) },
+      {
+        label: "Delete forever",
+        className: "delete",
+        onClick: () => this.hardDeleteFile(name),
+      },
     ]);
 
     main.append(check, left, star, menuContainer);
@@ -940,6 +945,34 @@ window.FilesModule = {
         },
         onCancel: () => resolve(null),
       });
+    });
+  },
+
+  hardDeleteFile(name) {
+    ModalModule.show({
+      title: "Delete forever",
+      message: `Permanently delete "${name}"? This skips trash.`,
+      confirmText: "Delete forever",
+      danger: true,
+      onConfirm: async () => {
+        try {
+          await Api.request("/delete.php", {
+            method: "DELETE",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              fileName: name,
+              folder: Api.currentFolder || "",
+              isFolder: false,
+            }),
+          });
+          ToastModule.show("Deleted forever", "success");
+          ActivityModule.log?.("Hard deleted", name);
+          this.loadFiles();
+        } catch (error) {
+          if (error.authRequired) AuthGate.prompt();
+          ToastModule.show(error.message || "Delete failed", "error");
+        }
+      },
     });
   },
 
