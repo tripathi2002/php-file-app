@@ -68,6 +68,10 @@ Also accepts Bearer auth. `Cache-Control: private, no-store`.
 | `change-pin.php` | Personal PIN rotate |
 | `sessions.php` | List / revoke other sessions |
 | `ping.php` | Latency probe |
+| `quota.php` | Used/quota percent |
+| `exists.php` | Name exists probe |
+| `recent-server.php` | Newest files across space |
+| `large-files.php` | Biggest files |
 
 ## Health / version
 

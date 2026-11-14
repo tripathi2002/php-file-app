@@ -39,11 +39,18 @@ php tests/negative-flow.php
 |---|----------|----------|
 | X1 | Search `/` | Filters current folder |
 | X2 | Sort / type chips / favorites | List updates client-side |
-| X3 | Preview image/pdf/text | In-app overlay |
+| X3 | Preview image/pdf/text | In-app overlay; ← → navigates |
 | X4 | Move / duplicate / copy link | Works; activity log updates |
 | X5 | Theme button | Cycles system/light/dark |
 | X6 | Grid toggle | Switches layout |
 | X7 | Pull-down on mobile | Refresh toast |
+| X8 | Deep search | Finds across folders |
+| X9 | Trash file then restore | File returns |
+| X10 | Shift+click range select | Contiguous selection |
+| X11 | More → Largest / Newest | Insight modals |
+| X12 | Upload existing name | Overwrite or keep both before chunks |
+| X13 | Idle 30m in personal | Auto logout |
+| X14 | Ctrl+L | Copies current folder path |
 
 ---
 
